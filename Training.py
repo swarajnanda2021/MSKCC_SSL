@@ -72,25 +72,25 @@ nnclr_model     = Methods.NNCLR(
                             device                          = device
                             )
 
-mae_model = MAE(
-                image_size              = 32,            # image_size (int)              : size of the input image
-                patch_size              = 8,            # patch_size (int)              : size of the patches to be extracted from the input image
-                in_channels             = 3,           # in_channels (int)             : number of input channels
-                embedding_dim           = 512,         # embedding_dim (int)           : number of elements of the embedding vector (per patch)
-                feature_size            = 1024,          # feature_size (int)            : Total size of feature vector
-                n_blocks                = 8,              # n_blocks (int)                : total number of sequential transformer blocks (a.k.a. depth)
-                n_heads                 = 8,               # n_heads (int)                 : total number of attention heads per transformer block
-                mlp_ratio               = 4,             # mlp_ratio (float)             : the ratio by which embedding dimension expands inside a transformer block (in the MLP layer after attention)
-                qkv_bias                = True,              # qkv_bias (bool)               : whether to add a bias term to the qkv projection layer or not
-                attention_dropout       = 0.5,     # attention_dropout (float)     : dropout in the attention layer
-                projection_dropout      = 0.5,    # projection_dropout (float)    : dropout in the projection layer
-                mask_ratio              = 0.75,            # mask_ratio (float)            : masking applied to input image patch embeddings
-                decoder_embedding_dim   = 512, # decoder embedding dim (float) : decoder has a different embedding dim for convenience
-                decoder_n_heads         = 8,
-                decoder_n_blocks        = 8,
-                epochs                  = EPOCHS,
-                device                  = device,
-                batch_size              = BATCH_SIZE
+mae_model       = Methods.MAE(
+                                image_size              = 32,            # image_size (int)              : size of the input image
+                                patch_size              = 8,            # patch_size (int)              : size of the patches to be extracted from the input image
+                                in_channels             = 3,           # in_channels (int)             : number of input channels
+                                embedding_dim           = 512,         # embedding_dim (int)           : number of elements of the embedding vector (per patch)
+                                feature_size            = 1024,          # feature_size (int)            : Total size of feature vector
+                                n_blocks                = 8,              # n_blocks (int)                : total number of sequential transformer blocks (a.k.a. depth)
+                                n_heads                 = 8,               # n_heads (int)                 : total number of attention heads per transformer block
+                                mlp_ratio               = 4,             # mlp_ratio (float)             : the ratio by which embedding dimension expands inside a transformer block (in the MLP layer after attention)
+                                qkv_bias                = True,              # qkv_bias (bool)               : whether to add a bias term to the qkv projection layer or not
+                                attention_dropout       = 0.5,     # attention_dropout (float)     : dropout in the attention layer
+                                projection_dropout      = 0.5,    # projection_dropout (float)    : dropout in the projection layer
+                                mask_ratio              = 0.75,            # mask_ratio (float)            : masking applied to input image patch embeddings
+                                decoder_embedding_dim   = 512, # decoder embedding dim (float) : decoder has a different embedding dim for convenience
+                                decoder_n_heads         = 8,
+                                decoder_n_blocks        = 8,
+                                epochs                  = EPOCHS,
+                                device                  = device,
+                                batch_size              = BATCH_SIZE
 
                 )
 
