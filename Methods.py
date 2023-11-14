@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 from torchvision import models
+from Encoders import *
 
 # Method 1: SimCLR
 
@@ -253,4 +254,237 @@ class SupportSet(nn.Module):
             out = self.queue[nn_idx]
 
         return out
+
+
+# Method 3: MAE
+
+
+
+class MAE(nn.Module):
+
+    # The initialization will have several commonalities with the ViT, but has a decoder transformer too which sets it apart
+    def __init__(self,
+                 image_size,            # image_size (int)              : size of the input image
+                 patch_size,            # patch_size (int)              : size of the patches to be extracted from the input image
+                 in_channels,           # in_channels (int)             : number of input channels
+                 embedding_dim,         # embedding_dim (int)           : number of elements of the embedding vector (per patch)
+                 feature_size,          # feature_size (int)            : Total size of feature vector
+                 n_blocks,              # n_blocks (int)                : total number of sequential transformer blocks (a.k.a. depth)
+                 n_heads,               # n_heads (int)                 : total number of attention heads per transformer block
+                 mlp_ratio,             # mlp_ratio (float)             : the ratio by which embedding dimension expands inside a transformer block (in the MLP layer after attention)
+                 qkv_bias,              # qkv_bias (bool)               : whether to add a bias term to the qkv projection layer or not
+                 attention_dropout,     # attention_dropout (float)     : dropout in the attention layer
+                 projection_dropout,    # projection_dropout (float)    : dropout in the projection layer
+                 mask_ratio,            # mask_ratio (float)            : masking applied to input image patch embeddings
+                 decoder_embedding_dim, # decoder embedding dim (float) : decoder has a different embedding dim for convenience
+                 decoder_n_heads,
+                 decoder_n_blocks,
+                 epochs,
+                 device,
+                 batch_size
+                 ):
+        super().__init__()
+
+        # Part 1) Important elements for the MAE method alone
+        self.mask_ratio         = mask_ratio
+        self.patch_embedding    = PatchEmbed(
+                                            img_size        =   image_size,
+                                            patch_size      =   patch_size,
+                                            in_channels     =   in_channels,
+                                            embed_dim       =   embedding_dim
+                                            )
+
+        self.class_token        = nn.Parameter(torch.zeros(1,1,embedding_dim))
+        self.position_embedding = nn.Parameter(torch.zeros(1, self.patch_embedding.n_patches + 1, embedding_dim), requires_grad=False)
+        # In the above line, the requires_grad = False appeared to fix the sin-cos embedding (whatever that means)
+
+        # Part 2) Encoder specific elements, this should ideally be replaced by a self.encoder = encoder function
+        self.position_dropout   = nn.Dropout(p = projection_dropout)
+        self.blocks             = nn.ModuleList(
+                                        [
+                                            TransformerBlock(
+                                                            embedding_dim       = embedding_dim,
+                                                            num_heads           = n_heads,
+                                                            MLP_ratio           = mlp_ratio,
+                                                            qkv_bias            = qkv_bias,
+                                                            attention_dropout   = attention_dropout,
+                                                            projection_dropout  = projection_dropout,
+                                                             )
+                                         for _ in range(n_blocks)]
+                                        )
+        self.norm               = nn.LayerNorm(embedding_dim, eps=1e-6)
+        self.head               = nn.Linear(embedding_dim, feature_size)
+
+        # Part 3) Decoder specific elements
+        self.decoder_embedding      = nn.Linear(embedding_dim, decoder_embedding_dim, bias=True)
+        self.mask_token             = nn.Parameter(torch.zeros(1,1,decoder_embedding_dim))
+        self.decoder_pos_embedding  = nn.Parameter(torch.zeros(1, self.patch_embedding.n_patches + 1, decoder_embedding_dim), requires_grad=False)
+        self.dec_blocks             = nn.ModuleList(
+                                        [
+                                            TransformerBlock(
+                                                            embedding_dim       = decoder_embedding_dim,
+                                                            num_heads           = decoder_n_heads,
+                                                            MLP_ratio           = mlp_ratio,
+                                                            qkv_bias            = qkv_bias,
+                                                            attention_dropout   = attention_dropout,
+                                                            projection_dropout  = projection_dropout,
+                                                             )
+                                         for _ in range(decoder_n_blocks)]
+                                        )
+        self.dec_norm               = nn.LayerNorm(decoder_embedding_dim, eps = 1e-6)
+        self.dec_head               = nn.Linear(decoder_embedding_dim, patch_size**2 * in_channels, bias=True)
+
+        # Optimization related stuff:
+
+        #self.optimizer          = torch.optim.SGD(self.parameters(), lr=0.06, momentum=0.9, weight_decay=5e-4)
+        #
+        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=(1.5e-4) * batch_size / 256, betas=(0.9, 0.95), weight_decay=0.05)
+        self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
+
+        self.epochs             = epochs
+        self.device             = device
+
+        # Meta has a normalized pixel loss implemented, but we will avoid it for the time being
+
+    def RandomMasking(self, patches):
+
+        N, L, D         = patches.shape # batch, length, dimension
+        retained        = int((1-self.mask_ratio)*L) # The total number of patches that will be retained
+
+        noise_vec       = torch.rand(N, L, device = patches.device) # Generate a noise matrix using torch.rand function b/w [0 1]
+        id_shuffled     = torch.argsort(noise_vec,dim=1) # this provides indices to shuffle, lower ones are kept, higher ones are removed, per self.ratio
+        id_restore      = torch.argsort(id_shuffled,dim = 1) # this undoes the shuffling (for posterity)
+
+        id_keep         = id_shuffled[:, :retained]        # use the first 'retained' elements and discard the rest
+        x_masked        = torch.gather(patches, dim = 1, index = id_keep.unsqueeze(-1).repeat(1,1,D))
+
+        # The above line will achieve the following:
+        # given x = [1 2 0 ; 0 1 2], for example,
+        # you get: x_masked = [ [1 ; 2 ; 0] ; [0 ; 1 ; 2] ],
+        # the repeat will enable the entries ([1 ; 2 ; 0] and [0 ; 1 ; 2]) to be repeated D times along the column
+
+        mask                = torch.ones( [N , L] , device = patches.device)
+        mask[:, :retained]  = 0
+
+        mask                = torch.gather(mask, dim = 1, index = id_restore)
+
+        return x_masked, mask, id_restore
+
+    def encode(self, img_set , mask_ratio):
+        # x has dim: B, C, H, W
+        x = self.patch_embedding(img_set)           # Convert image to patch embedding:-> Batch, N_patches, Embedding_dim
+        x = x + self.position_embedding[:, 1:, :]   # Position embedding avoids the first entry in first dim as that is the location of the class token
+        # x has dim: B, N_patches, Embedding_dim
+
+        x, mask, ids_restore = self.RandomMasking(x)
+
+        # Now add the class token, basically complete the vanilla bits of the ViT
+        cls_token   = self.class_token + self.position_embedding[:,:1,:]
+        cls_tokens  = cls_token.expand(x.shape[0],-1,-1)
+        x           = torch.cat((cls_tokens,x),dim=1)
+        # Understand what has happened above by understanding matrix sizes
+
+        # Add the transformer blocks, layer norm
+        for block in self.blocks:
+            x       = block(x)
+        x           = self.norm(x)
+
+        return x, mask, ids_restore
+
+    def decode(self, embeddings, ids_restore):
+        # first convert embedding dim to decoder specific embedding dim (can both be same too, I suppose)
+        x           = self.decoder_embedding(embeddings)
+
+        # append mask token
+        mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
+        x_          = torch.cat([x[:,1:,:], mask_tokens], dim=1)
+        x_          = torch.gather(x_, dim=1, index= ids_restore.unsqueeze(-1).repeat(1,1,x.shape[2]))
+        x           = torch.cat([x[:,:1,:], x_], dim=1) # appending the class token
+        # Understand what has happened above by understanding matrix sizes
+
+        x           = x + self.decoder_pos_embedding    # add pos embed
+
+        # Apply transformer module and the layer norm
+        for block in self.dec_blocks:
+            x       = block(x)
+        x           = self.dec_norm(x)
+
+        # Apply the prediction head to convert embeddings to patch^2 * n_channels
+        x           = self.dec_head(x)
+
+        # Remove class token
+        x           = x[:,1:,:]
+
+        return x
+
+    def patchify(self, image_set):
+        # converts images to patches so that we can calculate the mean squared error for loss estimation
+        # image set : B, C, H, W
+        # x         : B, L, patch**2 *3
+
+        p           =   self.patch_embedding.patch_size
+        h = w       =   image_set.shape[2] // p
+        x           =   image_set.reshape(shape = (image_set.shape[0] , 3 , h , p , w , p))
+        x           =   torch.einsum('nchpwq->nhwpqc', x)
+        x           =   x.reshape(shape=(image_set.shape[0], h * w, p**2 * 3))
+        return x
+
+    def unpatchify(self, x):
+        # bring patches back to image dimension so that you can plot the image(s) generated
+        # x         : B, L, patch**2 *3
+        # image set : B, C, H, W
+
+        p           = self.patch_embedding.patch_size
+        h = w       = int(x.shape[1] ** 0.5)
+        x           = x.reshape(shape = (x.shape[0], h, w, p, p, 3))
+        x           = torch.einsum('nhwpqc->nchpwq', x)
+        image_set   = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        return image_set
+
+    def MAE_loss(self, image_set, pred, mask):
+        # This computes the loss between a given image set and the predictions (incl. mask)
+        #   imgs: [N, 3, H, W]
+        #   pred: [N, L, p*p*3]
+        #   mask: [N, L], 0 is keep, 1 is remove,
+
+        target = self.patchify(image_set)
+        loss = (target - pred) ** 2
+        loss = loss.mean(dim=-1)
+        mask_sum = mask.sum() + 1e-6  # Adding a small epsilon to avoid division by zero
+        loss = (loss * mask).sum() / mask_sum
+        return loss
+
+
+    def train(self, dataloader):
+
+        self.losses = []
+        # start training
+        for epoch in range(self.epochs):
+
+            # Initialize tqdm
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
+
+            for batch_idx, (images, _) in enumerate(train_loader):    # Stack images from the current batch
+
+                images = images.to(self.device)
+                x, mask, ids_restore = self.encode(images, self.mask_ratio)
+                pred = self.decode(x, ids_restore)
+
+                loss = self.MAE_loss(images, pred, mask)
+
+                # perform optimization
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                # Append the loss
+                self.losses.append(loss.item())
+
+                # Update tqdm postfix to show the current batch loss
+                train_loader.set_postfix(batch_loss=loss.item())
+
+            self.scheduler.step()
+
+        return self.losses
+
 
