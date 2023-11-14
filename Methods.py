@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from tqdm import tqdm
 from torchvision import models
-from Encoders import *
+from Encoders import PatchEmbed, TransformerBlock
 
 # Method 1: SimCLR
 
