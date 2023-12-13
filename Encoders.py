@@ -230,8 +230,8 @@ class MultiLayerPerceptron(nn.Module):
         super().__init__()
         self.fc1            = nn.Linear(in_features,hidden_features)
         self.fc2            = nn.Linear(hidden_features,out_features)
-        self.dropout        = dropout
-        self.activation     = nn.GELU
+        self.dropout        = nn.Dropout(dropout)
+        self.activation     = nn.GELU()
 
     def forward(self,x): # x :: batches, tokens, in features
         x = self.fc1(x) # x :: batches, tokens, hidden features
@@ -305,7 +305,7 @@ class ViT_encoder(nn.Module):
         x                   = torch.cat((class_token,x), dim=1) # class token is not appended to the patch tokens
         x                   = x + self.position_embedding(x) # Add the position embedding mechanism
         x                   = self.position_dropout(x)
-        for block in range(self.blocks):
+        for block in self.blocks:
             x = block(x)
         x                   = self.norm(x) # add the layer norm mechanism now, giving us n_samples X (class token + patch token) X embedding dim
         x                   = x[:, 1:, :].mean(dim=1)  # global pool without cls token, giving us n_samples X embedding_dim 
