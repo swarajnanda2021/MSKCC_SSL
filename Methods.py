@@ -8,16 +8,7 @@ from Encoders import PatchEmbed, TransformerBlock
 
 # Method 1: SimCLR
 
-class simCLR(nn.Module): # the similarity loss of simCLR
 
-    def __init__(self, encoder, device,batch_size,epochs):
-        super().__init__()
-        self.model = encoder.to(device) # define the encoder here
-        self.optimizer = optim.AdamW(self.model.parameters(),lr=1e-2,weight_decay=1e-2)
-        self.criterion = torch.nn.CrossEntropyLoss().to(device)
-        self.batch_size = batch_size
-        self.epochs = epochs
-        self.device = device
 
     def SimCLR_loss(self, features):
         n_views = 2
@@ -49,39 +40,69 @@ class simCLR(nn.Module): # the similarity loss of simCLR
 
         return logits, labels
 
+    def get_encoder(self):
+        return self.model
+
+    def save_checkpoint(self, file_path):
+        """
+        Save the model checkpoint.
+        """
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
+
+    def load_checkpoint(self, file_path, device):
+        """
+        Load the model from the checkpoint.
+        """
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
+
+
+
     def train(self, dataloader):
+        self.losses = []  # Track losses
 
-        n_iter = 0
-        self.losses = []
-        # start training
-        for epochs in range(self.epochs):
+        # Start training
+        for epoch in range(self.epochs):
+            # Initialize tqdm progress bar
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
 
-            train_loader = tqdm(dataloader, desc=f"Epoch {epochs + 1}/{self.epochs}")
-
-            for batch_idx, (views, _) in enumerate(train_loader):    # Stack images from the current batch
-
+            for views, _ in train_loader:  # Unpack data and labels from each batch
                 imgs = torch.cat(views, dim=0).to(self.device)
 
-
-                # load images and calculate infoNCE loss
-                #imgs = torch.stack([img for idx in range(batch_size) for img in dataloader[idx][0]], dim=0).to(device)
+                # Load images and calculate InfoNCE loss
                 features = self.model(imgs)
-                logits,labels = self.SimCLR_loss(features)
-                loss = self.criterion(logits,labels)
+                logits, labels = self.SimCLR_loss(features)
+                loss = self.criterion(logits, labels)
 
-                # Append the loss function
+                # Append the loss
                 self.losses.append(loss.item())
 
-                # perform optimization
+                # Perform optimization
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-                n_iter += 1
+                # Update tqdm progress bar with the current loss
+                train_loader.set_postfix(loss=loss.item())
+
+            if (int(epoch)%10 == 0):
+              file_path = '/content/drive/MyDrive/SimCLR_UMAP/simclr_checkpoint.pth'
+
+              # Save the current state of the model and optimizer
+              self.save_checkpoint(file_path)
+
+
+            #self.scheduler.step(epoch)
+
+
         return self.losses
-
-
-
 # Method 2: NNCLR
 
 class NNCLR(nn.Module):
