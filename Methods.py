@@ -5,8 +5,23 @@ import torch.optim as optim
 from tqdm import tqdm
 from torchvision import models
 from Encoders import PatchEmbed, TransformerBlock
+from Schedulers import CustomScheduler
 
 # Method 1: SimCLR
+
+
+class simCLR(nn.Module): # the similarity loss of simCLR
+
+    def __init__(self, encoder, device,batch_size,epochs):
+        super().__init__()
+        self.model = encoder.to(device) # define the encoder here
+        self.criterion = torch.nn.CrossEntropyLoss().to(device)
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.device = device
+        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
+        #self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
+        self.scheduler          = CustomScheduler(self.optimizer, warmup_epochs=25, initial_lr=1e-4, final_lr=1e-3, total_epochs=50)
 
 
 
@@ -103,6 +118,9 @@ from Encoders import PatchEmbed, TransformerBlock
 
 
         return self.losses
+
+
+
 # Method 2: NNCLR
 
 class NNCLR(nn.Module):
