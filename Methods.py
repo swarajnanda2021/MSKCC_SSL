@@ -123,9 +123,14 @@ class simCLR(nn.Module): # the similarity loss of simCLR
 
 # Method 2: NNCLR
 
+# NNCLR method
+
+
+
 class NNCLR(nn.Module):
 
     def __init__(self,
+                 encoder,
                  feature_size,  # Size of vector at the end of projection operation
                  queue_size,    # Size of the set of nearest neighbor features.
                  projection_hidden_size_ratio, # to be multiplied with encoder size
@@ -142,14 +147,16 @@ class NNCLR(nn.Module):
         self.device     = device
         self.batch_size = batch_size
         self.epochs     = epochs
+        self.encoder    = encoder.to(device)
+        encoder_size    = feature_size
         #self.encoder    = ResNet(ResidualBlock,[3, 5, 7], encoder_size).to(device) # set up the residual block with 1000 feature vector output
-        resnet18 = models.resnet18()
-        resnet18.conv1 = nn.Conv2d(
-                    3, 64, kernel_size=3, stride=1, padding=2, bias=False
-                )
-        resnet18.maxpool = nn.Identity()
-        self.encoder = nn.Sequential(*list(resnet18.children())[:-1]).to(device)
-        encoder_size = resnet18.fc.in_features
+        #resnet18 = models.resnet18()
+        #resnet18.conv1 = nn.Conv2d(
+        #            3, 64, kernel_size=3, stride=1, padding=2, bias=False
+        #        )
+        #resnet18.maxpool = nn.Identity()
+        #self.encoder = nn.Sequential(*list(resnet18.children())[:-1]).to(device)
+        #encoder_size = resnet18.fc.in_features
 
         self.projector  = nn.Sequential(
                             nn.Linear(encoder_size,encoder_size * projection_hidden_size_ratio),
@@ -171,8 +178,9 @@ class NNCLR(nn.Module):
         self.nearest_neighbor   = SupportSet(feature_size=feature_size,queue_size = queue_size).to(device) # This needs to be written next
         self.temperature        = temperature
         self.reduction          = reduction
-        self.optimizer          = torch.optim.SGD(self.parameters(), lr=0.3, momentum=0.9, weight_decay=5e-4)
-        self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=1000, eta_min=0, last_epoch=-1)
+        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95), weight_decay=0.05) 
+        #self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=1000, eta_min=0, last_epoch=-1)
+        self.scheduler          = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
 
     def compute_loss(self,predicted,nn): # supply feature set (passed through projector and predictor) and NNs
         pred_size, _    = predicted.shape
@@ -223,31 +231,64 @@ class NNCLR(nn.Module):
         nnclr_loss = (self.compute_loss(pred1,nn2) * 0.5) + (self.compute_loss(pred2,nn1) * 0.5)
 
         return nnclr_loss
+    
+    def get_encoder(self):
+        return self.encoder
 
-    def train(self,dataloader):
+    def save_checkpoint(self, file_path):
+        """
+        Save the model checkpoint.
+        """
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
 
-        n_iter = 0
-        self.losses = []
-        # start training
-        for epochs in range(self.epochs):
+    def load_checkpoint(self, file_path, device):
+        """
+        Load the model from the checkpoint.
+        """
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
 
-            train_loader = tqdm(dataloader, desc=f"Epoch {epochs + 1}/{self.epochs}")
 
-            for batch_idx, (views, _) in enumerate(train_loader):    # Stack images from the current batch
+    def train(self, dataloader):
+        self.losses = []  # Track losses
 
-                image_set = torch.cat(views, dim=0).to(self.device)
-                loss = self.NNCLR_loss(image_set)
+        # Start training
+        for epoch in range(self.epochs):
+            # Initialize tqdm progress bar
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
 
-                # Append the loss 
+            for views, _ in train_loader:  # Unpack data and labels from each batch
+                imgs = torch.cat(views, dim=0).to(self.device)
+
+                # Calculate NNCLR loss
+                loss = self.NNCLR_loss(imgs)
+
+                # Append the loss
                 self.losses.append(loss.item())
 
-                # perform optimization
+                # Perform optimization
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
 
-                n_iter += 1
+                # Update tqdm progress bar with the current loss
+                train_loader.set_postfix(loss=loss.item())
+
+            # Save model checkpoint at regular intervals
+            if epoch % 10 == 0:
+                file_path = '/content/drive/MyDrive/SimCLR_UMAP/nnclr_ResNet_checkpoint.pth'
+                # Save the current state of the model and optimizer
+                self.save_checkpoint(file_path)
+
             self.scheduler.step()
+
         return self.losses
 
 class SupportSet(nn.Module):
@@ -293,6 +334,7 @@ class SupportSet(nn.Module):
             out = self.queue[nn_idx]
 
         return out
+
 
 
 # Method 3: MAE
