@@ -61,6 +61,7 @@ simclr_model    = Methods.simCLR(
                             epochs          = EPOCHS)
 
 nnclr_model     = Methods.NNCLR(
+                            encoder = resnet34(),
                             feature_size                    = 512, 
                             queue_size                      = 32768,
                             projection_hidden_size_ratio    = 4,
