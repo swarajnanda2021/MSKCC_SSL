@@ -287,7 +287,7 @@ class NNCLR(nn.Module):
                 # Save the current state of the model and optimizer
                 self.save_checkpoint(file_path)
 
-            self.scheduler.step()
+            self.scheduler.step(epoch)
 
         return self.losses
 
