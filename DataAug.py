@@ -96,5 +96,14 @@ if __name__ == "__main__":
             mean=(0.5,),
             std=(0.5,)
         )
+        
+        cifar_trainset  = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
     else:
-        cifar_trainset = CIFAR10(root='./data', train= True, download=True, transform=DinoTransforms(size=32, scale_teacher= (0.95, 0.1), scale_student= (0.4, 0.5),teacher_nviews=3,student_nviews=1))
+        dino_transform = DinoTransforms(
+            size=32, 
+            scale_teacher= (0.95, 0.1), 
+            scale_student= (0.4, 0.5),
+            teacher_nviews=3,
+            student_nviews=1
+        )
+        cifar_trainset = CIFAR10(root='./data', train= True, download=True, transform=dino_transform)
