@@ -12,17 +12,17 @@ from Schedulers import CustomScheduler
 
 class simCLR(nn.Module): # the similarity loss of simCLR
 
-    def __init__(self, encoder, device,batch_size,epochs):
+    def __init__(self, encoder, device,batch_size,epochs,savepath,optimizer,lr_scheduler):
         super().__init__()
         self.model = encoder.to(device) # define the encoder here
         self.criterion = torch.nn.CrossEntropyLoss().to(device)
         self.batch_size = batch_size
         self.epochs = epochs
         self.device = device
-        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-        #self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-        self.scheduler          = CustomScheduler(self.optimizer, warmup_epochs=25, initial_lr=1e-4, final_lr=1e-3, total_epochs=50)
-
+        self.optimizer = optimizer
+        self.scheduler = lr_scheduler
+        self.savepath  = savepath
+        
 
 
     def SimCLR_loss(self, features):
@@ -108,7 +108,8 @@ class simCLR(nn.Module): # the similarity loss of simCLR
                 train_loader.set_postfix(loss=loss.item())
 
             if (int(epoch)%10 == 0):
-              file_path = '/content/drive/MyDrive/SimCLR_UMAP/simclr_checkpoint.pth'
+              #file_path = '/content/drive/MyDrive/SimCLR_UMAP/simclr_checkpoint.pth'
+              file_path = self.savepath
 
               # Save the current state of the model and optimizer
               self.save_checkpoint(file_path)
