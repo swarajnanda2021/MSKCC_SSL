@@ -1,4 +1,5 @@
 from torchvision import transforms
+from torchvision.datasets import ImageFolder
 
 # For SimCLR, NNCLR, and other invariance based methods
 class ContrastiveTransformations(object):
@@ -82,7 +83,8 @@ if __name__ == "__main__":
     contrastive == 0
     # Initialize the ContrastiveTransformations object with custom parameters
     if contrastive == 1:
-        contrastive_transform = ContrastiveTransformations(
+        custom_transforms = ContrastiveTransformations(
+            size=32,
             nviews=2,
             horizontal_flip=True,
             resized_crop=True,
@@ -102,11 +104,20 @@ if __name__ == "__main__":
         
         cifar_trainset  = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
     else:
-        dino_transform = DinoTransforms(
+        custom_transforms = DinoTransforms(
             size=32, 
             scale_teacher= (0.95, 0.1), 
             scale_student= (0.4, 0.5),
             teacher_nviews=3,
             student_nviews=1
         )
-        cifar_trainset = CIFAR10(root='./data', train= True, download=True, transform=dino_transform)
+
+    
+    # If you are working with the CIFAR10 dataset (for implementation), use the following line
+    cifar_trainset = CIFAR10(root='./data', train= True, download=True, transform=custom_transforms)
+
+    # If you have your own image folder, then use the torvision.datasets.ImageFolder function
+    image_dataset = ImageFolder(root='root_directory', transform=custom_transforms)
+
+
+
