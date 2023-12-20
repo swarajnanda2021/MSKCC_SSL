@@ -22,6 +22,7 @@ class ContrastiveTransformations(object):
 
     def __call__(self, x):
         transforms_list = []
+        transforms_list.append(transforms.Resize((self.size, self.size)))
         if self.horizontal_flip:
             transforms_list.append(transforms.RandomHorizontalFlip())
         if self.resized_crop:
@@ -52,11 +53,13 @@ class DinoTransforms(object):
     
     def __init__(self, size, scale_teacher, scale_student,student_nviews, teacher_nviews):
         self.transforms_teacher  = transforms.Compose([
+                transforms.Resize((size, size)),
                 transforms.RandomResizedCrop(size=size, scale = scale_teacher),
                 transforms.ToTensor(),
                 # Add any additional transformations if needed
             ])
         self.transforms_student  = transforms.Compose([
+                transforms.Resize((size, size)),
                 transforms.RandomResizedCrop(size=size, scale = scale_student),
                 transforms.ToTensor(),
                 # Add any additional transformations if needed
