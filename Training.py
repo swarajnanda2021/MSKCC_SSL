@@ -57,9 +57,7 @@ encoder  = ViTencoder() #resnet34()
 device   = torch.device("cuda")
 
 Optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-# For warm up, use this one
 #scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-# For continuing, use this one
 LRScheduler          = CustomScheduler(Optimizer, warmup_epochs=20, initial_lr=1e-4, final_lr=1e-3, total_epochs=EPOCHS)
 
 
