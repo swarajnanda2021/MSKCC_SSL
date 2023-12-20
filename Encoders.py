@@ -61,6 +61,78 @@ class SimpleEncoder(nn.Module):
 
 
 # Encoder 1: ResNet
+import torch
+import torch.nn as nn
+
+class BasicBlock(nn.Module): # ResNet 18 and 34
+    expansion = 1
+
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.downsample = downsample
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+
+# Bottleneck Block: ResNet 50, 101 and 152
+class Bottleneck(nn.Module):
+    expansion = 4
+
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(Bottleneck, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels)
+        self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
+        self.relu = nn.ReLU(inplace=True)
+        self.downsample = downsample
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+        out = self.relu(out)
+
+        out = self.conv3(out)
+        out = self.bn3(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+# Convolution Block (Initial Layer)
 
 class ConvBlock(nn.Module):
     def __init__(self,InputChannel,OutputChannel,Kernel,Padding,Stride):
@@ -87,72 +159,54 @@ class ConvBlock(nn.Module):
         x = self.convblock(x)
         return x
 
-
-class ResidualBlock(nn.Module):
-    def __init__(self,in_channels,out_channels,stride = 1, downsample = None):
-        super().__init__() # inherit properties of nn.Module
-        self.conv1 = nn.Sequential(nn.Conv2d(in_channels=in_channels,out_channels=out_channels, kernel_size=3,stride=stride,padding=1),
-                                   nn.BatchNorm2d(out_channels),
-                                   nn.ReLU()
-                                   )
-        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=out_channels,out_channels=out_channels,stride=1,padding=1,kernel_size=3),
-                                   nn.BatchNorm2d(out_channels)
-                                   )
-        self.out_channels = out_channels
-        self.nonlinear = nn.ReLU()
-        self.downsample = downsample
-
-    def forward(self,x):
-        residual = x #save residual in separate variable
-        out = self.conv1(x)
-        out = self.conv2(out)
-        if self.downsample:
-            residual = self.downsample(x)
-        out += residual # add the residual connections
-        out = self.nonlinear(out)
-        return out
-
-
+# ResNet Class
 class ResNet(nn.Module):
-    def __init__(self,block,blocks,outputchannels):
+    def __init__(self, block, layers, outputchannels=1000):
         super().__init__()
-        # add initial convolutional layer
-        self.convlayer  = ConvBlock(InputChannel=3,OutputChannel=64,Kernel=3,Padding=1,Stride=1)
-        # add the residual blocks
-        self.layer1     = self._make_layer(block,inchannels=64,channels=128,numblocks = blocks[0],stride=2)
-        self.layer2     = self._make_layer(block,inchannels=128,channels=256,numblocks = blocks[1],stride=2)
-        self.layer3     = self._make_layer(block,inchannels=256,channels=512,numblocks = blocks[2],stride=2)
-        #self.layer4     = self._make_layer(block,inchannels=64,channels=128,layers[0],stride=1)
-        # add the average pooling block
-        self.avgpooling = nn.AdaptiveAvgPool2d((1,1)) # compresses the above to 512,1,1 output size by averaging over the other dimensions
-        self.fc         = nn.Linear(512,outputchannels)
+        self.in_channels = 64
+        self.conv1 = nn.Conv2d(3, self.in_channels, kernel_size=7, stride=2, padding=3, bias=False)
+        self.bn1 = nn.BatchNorm2d(self.in_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * block.expansion, outputchannels)
 
-    def _make_layer(self,block,inchannels,channels,numblocks,stride=1):
-        # first define whether a downsample is needed:
+    def _make_layer(self, block, out_channels, blocks, stride=1):
         downsample = None
-        if stride != 1 or inchannels != channels:
-            downsample  = nn.Sequential(
-                nn.Conv2d(in_channels=inchannels,out_channels = channels, kernel_size=1,stride = stride),
-                nn.BatchNorm2d(channels)
+        if stride != 1 or self.in_channels != out_channels * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv2d(self.in_channels, out_channels * block.expansion, kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm2d(out_channels * block.expansion),
             )
+
         layers = []
-        layers.append(block(inchannels,channels,stride,downsample))
-        for _ in range(1,numblocks): # loop over number of blocks
-            layers.append(block(channels,channels))
+        layers.append(block(self.in_channels, out_channels, stride, downsample))
+        self.in_channels = out_channels * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.in_channels, out_channels))
 
-        return nn.Sequential(*layers) # * operator is used to unpack the elements of an iterable (layers)
+        return nn.Sequential(*layers)
 
-    def forward(self,x):
-        x = self.convlayer(x)
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
-        x = self.avgpooling(x)
-        x = torch.flatten(x,1) # convert to 1X1 vector
+        x = self.layer4(x)
+
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
         x = self.fc(x)
+
         return x
-
-
 
 
 
@@ -316,11 +370,20 @@ class ViT_encoder(nn.Module):
         
 if __name__ == "__main__":
     
+    def resnet18():
+        layers=[2, 2, 2, 2]
+        model = ResNet(block = BasicBlock, layers = layers,outputchannels = 512)
+        return model
+        
     def resnet34():
-        layers=[3, 5, 7, 5]
-        model = ResNet(ResidualBlock, layers,1000)
+        layers=[3, 4, 6, 3]
+        model = ResNet(block = BasicBlock, layers = layers,outputchannels = 512)
         return model
     
+    def resnet50():
+        layers=[3, 4, 6, 3]
+        return ResNet(block = Bottleneck, layers = layers, outputchannels = 512)
+
     def ViTencoder():
         model = ViT_encoder(image_size = 32, 
                     patch_size = 16, 
@@ -334,3 +397,32 @@ if __name__ == "__main__":
                     attention_dropout = 0.2,
                     projection_dropout = 0.2)
         return model
+    
+    def ViT_tiny():
+        model = ViT_encoder(image_size=32, 
+                            patch_size=16, 
+                            in_channels=3, 
+                            embedding_dim=192,  # Reduced embedding dimension
+                            feature_size=1000,
+                            n_blocks=12,        # Similar to the base model
+                            n_heads=3,          # Fewer heads than the base model
+                            mlp_ratio=4.0,
+                            qkv_bias=True,
+                            attention_dropout=0.1,  # You might adjust dropout rates
+                            projection_dropout=0.1)
+        return model
+
+
+        def ViT_small():
+            model = ViT_encoder(image_size=32, 
+                                patch_size=16, 
+                                in_channels=3, 
+                                embedding_dim=384,  # Increased compared to tiny
+                                feature_size=1000,
+                                n_blocks=12,        # Similar to the base model
+                                n_heads=6,          # More heads than tiny, fewer than base
+                                mlp_ratio=4.0,
+                                qkv_bias=True,
+                                attention_dropout=0.1,
+                                projection_dropout=0.1)
+            return model
