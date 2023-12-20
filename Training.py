@@ -83,8 +83,12 @@ nnclr_model     = Methods.NNCLR(
                             reduction                       = 'mean',
                             batch_size                      = BATCH_SIZE, 
                             epochs                          = EPOCHS,
-                            device                          = device
+                            device                          = device,
+                            savepath        = '/content/drive/MyDrive/SimCLR_UMAP/nnclr_ResNet_checkpoint.pth',
+                            optimizer       = Optimizer,
+                            lr_scheduler    = LRScheduler, # This contains all the information on Learning Rate etcetera
                             )
+                            
 
 mae_model       = Methods.MAE(
                                 image_size              = 32,            # image_size (int)              : size of the input image
