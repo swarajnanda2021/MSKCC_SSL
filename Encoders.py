@@ -369,17 +369,17 @@ class ViT_encoder(nn.Module):
         
 if __name__ == "__main__":
     
-    def resnet18():
+    def resnet18():# 11.439168M parameters
         layers=[2, 2, 2, 2]
         model = ResNet(block = BasicBlock, layers = layers,outputchannels = 512)
         return model
         
-    def resnet34():
+    def resnet34():# 21.547328M parameters
         layers=[3, 4, 6, 3]
         model = ResNet(block = BasicBlock, layers = layers,outputchannels = 512)
         return model
     
-    def resnet50():
+    def resnet50():# 24.557120M parameters
         layers=[3, 4, 6, 3]
         return ResNet(block = Bottleneck, layers = layers, outputchannels = 512)
 
