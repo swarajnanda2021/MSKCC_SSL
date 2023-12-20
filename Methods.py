@@ -141,6 +141,9 @@ class NNCLR(nn.Module):
                  reduction   = 'mean', # set mean as the reduction in the cross-entropy loss (divides by 1/N, N being batch size)
                  batch_size  = 1000,
                  epochs      = 10,
+                 savepath,
+                 optimizer,
+                 lr_scheduler,
                  ):
 
         super().__init__()
@@ -179,10 +182,10 @@ class NNCLR(nn.Module):
         self.nearest_neighbor   = SupportSet(feature_size=feature_size,queue_size = queue_size).to(device) # This needs to be written next
         self.temperature        = temperature
         self.reduction          = reduction
-        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95), weight_decay=0.05) 
-        #self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=1000, eta_min=0, last_epoch=-1)
-        self.scheduler          = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
-
+        self.optimizer          = optimizer
+        self.scheduler          = lr_scheduler
+        self.savepath           = savepath
+                     
     def compute_loss(self,predicted,nn): # supply feature set (passed through projector and predictor) and NNs
         pred_size, _    = predicted.shape
         labels          = torch.arange(pred_size).to(predicted.device)
@@ -284,7 +287,7 @@ class NNCLR(nn.Module):
 
             # Save model checkpoint at regular intervals
             if epoch % 10 == 0:
-                file_path = '/content/drive/MyDrive/SimCLR_UMAP/nnclr_ResNet_checkpoint.pth'
+                file_path = self.savepath
                 # Save the current state of the model and optimizer
                 self.save_checkpoint(file_path)
 
