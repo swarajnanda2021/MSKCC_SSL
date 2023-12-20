@@ -58,7 +58,12 @@ simclr_model    = Methods.simCLR(
                             encoder         = resnet34(), 
                             device          = device, 
                             batch_size      = BATCH_SIZE, 
-                            epochs          = EPOCHS)
+                            epochs          = EPOCHS,
+                            savepath        = '',
+                            loadpath        = '',
+                            warmupEpochs    = 30,
+                            lr_scheduler    = Scheduler, # This contains all the information on Learning Rate etcetera
+                            )
 
 nnclr_model     = Methods.NNCLR(
                             encoder = resnet34(),
