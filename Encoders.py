@@ -61,8 +61,7 @@ class SimpleEncoder(nn.Module):
 
 
 # Encoder 1: ResNet
-import torch
-import torch.nn as nn
+
 
 class BasicBlock(nn.Module): # ResNet 18 and 34
     expansion = 1
