@@ -12,17 +12,18 @@ from Schedulers import CustomScheduler
 
 class simCLR(nn.Module): # the similarity loss of simCLR
 
-    def __init__(self, encoder, device,batch_size,epochs,savepath,optimizer,lr_scheduler):
+    def __init__(self, encoder, device,batch_size,epochs,savepath):
         super().__init__()
         self.model = encoder.to(device) # define the encoder here
         self.criterion = torch.nn.CrossEntropyLoss().to(device)
         self.batch_size = batch_size
         self.epochs = epochs
         self.device = device
-        self.optimizer = optimizer
-        self.scheduler = lr_scheduler
         self.savepath  = savepath
-        
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
+        #scheduler     = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
+        self.scheduler = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
+
 
 
     def SimCLR_loss(self, features):
@@ -141,9 +142,7 @@ class NNCLR(nn.Module):
                  reduction   = 'mean', # set mean as the reduction in the cross-entropy loss (divides by 1/N, N being batch size)
                  batch_size  = 1000,
                  epochs      = 10,
-                 savepath,
-                 optimizer,
-                 lr_scheduler,
+                 savepath    = '',
                  ):
 
         super().__init__()
@@ -182,9 +181,11 @@ class NNCLR(nn.Module):
         self.nearest_neighbor   = SupportSet(feature_size=feature_size,queue_size = queue_size).to(device) # This needs to be written next
         self.temperature        = temperature
         self.reduction          = reduction
-        self.optimizer          = optimizer
-        self.scheduler          = lr_scheduler
         self.savepath           = savepath
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
+        #scheduler     = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
+        self.scheduler = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
+
                      
     def compute_loss(self,predicted,nn): # supply feature set (passed through projector and predictor) and NNs
         pred_size, _    = predicted.shape
