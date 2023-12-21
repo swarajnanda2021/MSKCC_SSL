@@ -383,14 +383,14 @@ if __name__ == "__main__":
         layers=[3, 4, 6, 3]
         return ResNet(block = Bottleneck, layers = layers, outputchannels = 512)
 
-    def ViTencoder():
+    def ViT_base():
         model = ViT_encoder(image_size = 32, 
                     patch_size = 16, 
                     in_channels=3, 
-                    embedding_dim = 512, 
+                    embedding_dim = 768, 
                     feature_size= 1000,
                     n_blocks = 12,
-                    n_heads = 8,
+                    n_heads = 12,
                     mlp_ratio = 4.0,
                     qkv_bias = True,
                     attention_dropout = 0.2,
@@ -412,16 +412,16 @@ if __name__ == "__main__":
         return model
 
 
-        def ViT_small():
-            model = ViT_encoder(image_size=32, 
-                                patch_size=16, 
-                                in_channels=3, 
-                                embedding_dim=384,  # Increased compared to tiny
-                                feature_size=1000,
-                                n_blocks=12,        # Similar to the base model
-                                n_heads=6,          # More heads than tiny, fewer than base
-                                mlp_ratio=4.0,
-                                qkv_bias=True,
-                                attention_dropout=0.1,
-                                projection_dropout=0.1)
-            return model
+    def ViT_small():
+        model = ViT_encoder(image_size=32, 
+                            patch_size=16, 
+                            in_channels=3, 
+                            embedding_dim=384,  # Increased compared to tiny
+                            feature_size=1000,
+                            n_blocks=12,        # Similar to the base model
+                            n_heads=6,          # More heads than tiny, fewer than base
+                            mlp_ratio=4.0,
+                            qkv_bias=True,
+                            attention_dropout=0.1,
+                            projection_dropout=0.1)
+        return model
