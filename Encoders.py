@@ -356,7 +356,7 @@ class ViT_encoder(nn.Module):
         x                   = self.patch_embedding(x) # convert images to patch embedding
         class_token         = self.class_token.expand(batches, -1, -1) # 
         x                   = torch.cat((class_token,x), dim=1) # class token is not appended to the patch tokens
-        x                   = x + self.position_embedding(x) # Add the position embedding mechanism
+        x                   = x + self.position_embedding # Add the position embedding mechanism
         x                   = self.position_dropout(x)
         for block in self.blocks:
             x = block(x)
