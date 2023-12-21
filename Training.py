@@ -10,6 +10,7 @@ EPOCHS = 50
 
 
 contrast_transforms = DataAug.ContrastiveTransformations(
+        size            =   32,
         nviews          =   2,
         horizontal_flip =   True,
         resized_crop    =   True,
