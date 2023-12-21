@@ -36,12 +36,12 @@ train_loader    = DataLoader(cifar_trainset, batch_size=BATCH_SIZE, shuffle=True
 #encoder = Encoder(4000)
 def resnet34():
     layers   = [3, 5, 7, 5]
-    model    = Encoders.ResNet(Encoders.ResidualBlock, layers,1000)
+    model    = Encoders.ResNet(Encoders.BasicBlock, layers,1000)
     return model
 
 def resnet50():# 24.557120M parameters
         layers=[3, 4, 6, 3]
-        return Encoders.ResNet(block = Bottleneck, layers = layers, outputchannels = 512)
+        return Encoders.ResNet(block = Encoders.Bottleneck, layers = layers, outputchannels = 512)
 
 
 def ViTencoder():
