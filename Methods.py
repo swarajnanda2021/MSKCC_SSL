@@ -5,7 +5,7 @@ import torch.optim as optim
 from tqdm import tqdm
 from torchvision import models
 from Encoders import PatchEmbed, TransformerBlock
-from Schedulers import CustomScheduler
+from Scheduler import CustomScheduler
 
 # Method 1: SimCLR
 
