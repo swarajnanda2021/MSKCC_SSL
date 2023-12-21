@@ -2,7 +2,7 @@ from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 import DataAug, Encoders, Methods
 import torch
-from Scheulder import CustomScheduler
+from Scheduler import CustomScheduler
 
 BATCH_SIZE = 1024
 EPOCHS = 50
@@ -38,6 +38,11 @@ def resnet34():
     model    = Encoders.ResNet(Encoders.ResidualBlock, layers,1000)
     return model
 
+def resnet50():# 24.557120M parameters
+        layers=[3, 4, 6, 3]
+        return Encoders.ResNet(block = Bottleneck, layers = layers, outputchannels = 512)
+
+
 def ViTencoder():
         model = Encoders.ViT_encoder(
                     image_size          =   32, 
@@ -53,12 +58,8 @@ def ViTencoder():
                     projection_dropout  =   0.2)
         return model
 
-encoder  = ViTencoder() #resnet34()
+encoder  = resnet50()#ViTencoder() #resnet34()
 device   = torch.device("cuda")
-
-Optimizer          = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-#scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-LRScheduler          = CustomScheduler(Optimizer, warmup_epochs=20, initial_lr=1e-4, final_lr=1e-3, total_epochs=EPOCHS)
 
 
 simclr_model    = Methods.simCLR(
@@ -66,9 +67,7 @@ simclr_model    = Methods.simCLR(
                             device          = device, 
                             batch_size      = BATCH_SIZE, 
                             epochs          = EPOCHS,
-                            savepath        = '/content/drive/MyDrive/SimCLR_UMAP/simclr_ResNet_checkpoint.pth',
-                            optimizer       = Optimizer,
-                            lr_scheduler    = LRScheduler, # This contains all the information on Learning Rate etcetera
+                            savepath        = './checkpoints/test.pth',
                             )
 
 nnclr_model     = Methods.NNCLR(
@@ -82,9 +81,7 @@ nnclr_model     = Methods.NNCLR(
                             batch_size                      = BATCH_SIZE, 
                             epochs                          = EPOCHS,
                             device                          = device,
-                            savepath        = '/content/drive/MyDrive/SimCLR_UMAP/nnclr_ResNet_checkpoint.pth',
-                            optimizer       = Optimizer,
-                            lr_scheduler    = LRScheduler, # This contains all the information on Learning Rate etcetera
+                            savepath        = './checkpoints/test.pth',
                             )
                             
 
@@ -114,7 +111,7 @@ mae_model       = Methods.MAE(
 
 if __name__ == "__main__":
       
-      #simclr_loss_iter  =   simclr_model.train(train_loader)
+      simclr_loss_iter  =   simclr_model.train(train_loader)
       #nnclr_loss_iter   =   nnclr_model.train(train_loader)
-      mae_loss_iter     = mae_model.train(train_loader)  
+      #mae_loss_iter     = mae_model.train(train_loader)  
 
