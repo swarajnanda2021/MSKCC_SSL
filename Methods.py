@@ -90,8 +90,10 @@ class simCLR(nn.Module): # the similarity loss of simCLR
             train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
 
             for views, _ in train_loader:  # Unpack data and labels from each batch
+                if views[0].size(0) != self.batch_size:
+                    continue  # Skip this batch
                 imgs = torch.cat(views, dim=0).to(self.device)
-
+                    
                 # Load images and calculate InfoNCE loss
                 features = self.model(imgs)
                 logits, labels = self.SimCLR_loss(features)
