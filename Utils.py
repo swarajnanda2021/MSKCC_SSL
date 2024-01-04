@@ -49,3 +49,106 @@ class SupportSet(nn.Module):
 
         return out
 
+
+
+
+
+# We write now the DiNO projection heads, and a wrapper around the dino backbone and projection
+# head which allows it to take in images of various different sizes.
+
+
+class DiNOProjection(nn.Module):
+
+    def __init__(
+        self,
+        in_dim      ,
+        out_dim     ,
+        hidden_dim        =   512,
+        bottleneck_dim    =   256,
+        use_bn            =   False,
+        norm_last_layer   =   True,
+        nlayers           =   3,
+    ):
+      super().__init__()
+
+      nlayer = max(nlayers,1) # set the total number of MLP layers
+      if nlayers == 1:
+
+        self.mlp = nn.Linear(in_dim, bottleneck_dim)
+
+      else:
+
+        layers = [nn.Linear(in_dim, hidden_dim)]
+        if use_bn == True:
+          layers.append(nn.BatchNorm1d(hidden_dim))
+        for _ in range(nlayers-2):
+          layers.append(nn.Linear(hidden_dim,hidden_dim))
+          if use_bn == True:
+            layers.append(nn.BatchNorm1d(hidden_dim))
+          layers.append(nn.GELU())
+        layers.append(nn.Linear(hidden_dim,bottleneck_dim))
+
+        self.mlp = nn.Sequential(*layers)
+
+      self.apply(self._init_weights_) # Initialize weights (I need to understand this)
+      self.last_layer      = nn.utils.weight_norm(nn.Linear(bottleneck_dim, out_dim, bias = False))
+      self.last_layer.weight_g.data.fill_(1) # I need to understand this better
+      if norm_last_layer == True:
+        self.last_layer.weight_g.requires_grad = False
+
+    def _init_weights_(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+      x = self.mlp(x)
+      x = F.normalize(x, dim=-1, p=2)
+      x = self.last_layer(x)
+      return x
+
+
+class MultiCropWrapper(nn.Module):
+    # We are doing this for the explicit purpose of handling various crop sizes
+    def __init__(
+                self,
+                backbone,
+                proj_head
+                ):
+      super().__init__()
+      backbone.fc , backbone.head = nn.Identity(), nn.Identity()
+      self.backbone    =     backbone
+      self.projector   =     proj_head
+
+    def forward(self, x):
+      if not isinstance(x, list): # I've converted them all to lists, but might as well assert
+        x = [x]
+      # The following line may be confusing, but just understand
+      # this much that all it is doing is finding out the size of the images in x,
+      # finding out how many unique sizes there are (say 2 global crops at 224, 8 local
+      # crops at 96), finding out when these changes happen in the list x, and
+      # then batching them separately
+      sizes = torch.tensor([inp.shape[-1] for inp in x])
+      unique_sizes, counts = torch.unique_consecutive(sizes, return_counts=True)
+      idx_crops = torch.cumsum(counts, 0)
+
+      start_idx, output = 0, torch.empty(0).to(x[0].device)
+
+      for last_idx in idx_crops:
+        out = self.backbone(torch.cat(x[start_idx:last_idx]))
+
+        if isinstance(out, tuple):
+          out = out[0]
+        output = torch.cat([output, out])
+        start_idx = last_idx
+
+
+      return self.projector(output)
+
+
+
+
+
+
+
