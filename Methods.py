@@ -272,6 +272,8 @@ class NNCLR(nn.Module):
             train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
 
             for views, _ in train_loader:  # Unpack data and labels from each batch
+                if views[0].size(0) != self.batch_size:
+                    continue  # Skip this batch
                 imgs = torch.cat(views, dim=0).to(self.device)
 
                 # Calculate NNCLR loss
@@ -530,5 +532,219 @@ class MAE(nn.Module):
             self.scheduler.step()
 
         return self.losses
+
+
+
+
+
+
+# Method 4) DiNO
+
+
+
+# Okay, now we are ready to write down the DiNO training method
+
+class CustomScheduler: # Need this else NaNs
+    def __init__(self, optimizer, warmup_epochs, initial_lr, final_lr, total_epochs):
+        self.optimizer = optimizer
+        self.warmup_epochs = warmup_epochs
+        self.initial_lr = initial_lr
+        self.final_lr = final_lr
+        self.total_epochs = total_epochs
+        self.after_warmup_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=total_epochs - warmup_epochs)
+
+    def step(self, epoch):
+        if epoch < self.warmup_epochs:
+            # Warm-up phase
+            lr = self.initial_lr + (self.final_lr - self.initial_lr) * epoch / self.warmup_epochs
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] = lr
+        else:
+            # After warm-up, use the cosine annealing schedule
+            self.after_warmup_scheduler.step(epoch - self.warmup_epochs)
+
+
+
+class DiNO(nn.Module):
+
+    def __init__(self, encoder_embedding_dim, feature_size, encoder, device, batch_size, epochs,  temperature_teacher, temperature_student, ncrops, alpha = 0.996):
+        super().__init__()
+        # both student and teacher are the same encoders
+        #self.student    = encoder.to(device)
+        #self.teacher    = encoder.to(device)
+        # but their heads are different. Here is how using the MultiCropWrapper
+        self.student    = MultiCropWrapper(
+                            encoder,
+                            DiNOProjection(
+            in_dim=encoder_embedding_dim,
+            out_dim=feature_size,
+            use_bn=True,
+            norm_last_layer=True,
+        )
+
+                          ).to(device)
+
+        self.teacher    = MultiCropWrapper(
+                            encoder,
+                            DiNOProjection(
+            in_dim=encoder_embedding_dim,
+            out_dim=feature_size,
+            use_bn=True,
+            norm_last_layer=False,
+        )
+
+                          ).to(device)
+        self.savepath  = savepath
+        self.device     = device
+        self.batch_size = batch_size
+        self.epochs     = epochs
+        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95), weight_decay=0.05)
+        #self.scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
+        self.scheduler  = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-6, final_lr=1e-3, total_epochs=50)
+        # DiNO specific parameters
+        self.base_momentum  = alpha
+        self.final_momentum = 1
+        self.alpha      = alpha  # momentum blending constant
+        self.t_student  = temperature_student
+        self.t_teacher  = temperature_teacher
+        self.initial_teacher_temp = temperature_teacher
+        self.final_teacher_temp = 0.05 # change this
+        self.center_momentum = 0.999 # change this
+        self.register_buffer('center', torch.zeros(1, feature_size, device=device))
+        self.ncrops     = ncrops
+
+        self.criterion  = torch.nn.CrossEntropyLoss().to(device)
+
+    def update_momentum(self, current_epoch):
+        # Cosine schedule to update momentum (alpha)
+        self.alpha = self.final_momentum - 0.5 * (self.final_momentum - self.base_momentum) * \
+                     (1 + np.cos(np.pi * current_epoch / self.epochs))
+
+    def update_teacher_temp(self, current_epoch):
+        # Cosine schedule to update teacher temperature
+        self.t_teacher = self.final_teacher_temp - 0.5 * (self.final_teacher_temp - self.initial_teacher_temp) * \
+                         (1 + np.cos(np.pi * current_epoch / self.epochs))
+
+    @torch.no_grad()
+    def update_teacher(self):
+        # This uses the alpha parameter to update all
+        # the parameters of the teacher network using
+        # that from the student network using momentum.
+        #with torch.no_grad():
+        for student_params, teacher_params in zip(self.student.parameters(),self.teacher.parameters()):
+            teacher_params.data = self.alpha*teacher_params.data + (1.0 - self.alpha)*student_params.data
+
+    @torch.no_grad()
+    def update_center(self, teacher_output):
+        teacher_output_detached = teacher_output.detach()
+        # Update the center with EMA
+        self.center = self.center * self.center_momentum + teacher_output_detached.mean(dim=0, keepdim=True) * (1 - self.center_momentum)
+
+    def get_encoder(self):
+        return self.teacher, self.student
+
+    def save_checkpoint(self, file_path):
+
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
+
+    def load_checkpoint(self, file_path, device):
+
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
+
+
+    def DiNO_loss(self, teacher_output, student_output, current_epoch):
+
+        # Student sharpening
+        student_out = student_output / self.t_student
+        student_out = student_out.chunk(self.ncrops + 2)
+
+        # teacher centering and sharpening, as well as temperature and center momentum updates
+        self.update_teacher_temp(current_epoch)
+        teacher_out = F.softmax((teacher_output - self.center) / self.t_teacher, dim=-1)
+        teacher_out = teacher_out.detach().chunk(2)
+        self.update_center(teacher_output)
+
+
+        # Estimation of the loss (ensuring similar views do not contribute to loss)
+        total_loss = 0
+        n_loss_terms = 0
+        for iq, q in enumerate(teacher_out):
+            for v in range(len(student_out)):
+                if v == iq:
+                    # we skip cases where student and teacher operate on the same view
+                    continue
+                loss = torch.sum(-q * F.log_softmax(student_out[v], dim=-1), dim=-1)
+                total_loss += loss.mean()
+                n_loss_terms += 1
+        total_loss /= n_loss_terms
+        return total_loss # which is actually the average loss
+
+
+    def train(self, dataloader):
+        self.losses = [] # Track losses
+
+        # Switch off gradient requirement for teacher (I don't know if these steps are redundant)
+        for p in self.teacher.parameters():
+            p.requires_grad = False
+        # Switch off gradient requirement for teacher
+        for p in self.student.parameters():
+            p.requires_grad = True
+
+
+        # Start training
+        for epoch in range(self.epochs):
+            # Initialize tqdm progress bar
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
+            # Update alpha that adjusts teacher's parameter using momentum over the student's parameters
+            self.update_momentum(epoch)
+
+            for batch_idx, (batch_images, _) in enumerate(train_loader):
+                if batch_images[0].size(0) != self.batch_size:
+                  continue  # Skip this batch
+
+
+                batch_images = [item.to(self.device) for item in batch_images]
+                # Calculate features
+                teacher_output = self.teacher(batch_images[:2])
+                student_output = self.student(batch_images)
+
+                # Calculate cross-entropy loss
+                loss  = self.DiNO_loss(teacher_output,student_output,epoch)
+
+                # Append the loss
+                self.losses.append(loss.item())
+
+                # Perform optimization
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                # update teacher
+                self.update_teacher()
+
+                # Update tqdm progress bar with the current loss
+                train_loader.set_postfix(loss=loss.item())
+
+            self.scheduler.step(epoch) # update the scheduler learning rate
+            # Save model checkpoint at regular intervals
+            if epoch % 10 == 0:
+                file_path = self.savepath
+                # Save the current state of the model and optimizer
+                self.save_checkpoint(file_path)
+
+        return self.losses
+
+
+
+
+
 
 
