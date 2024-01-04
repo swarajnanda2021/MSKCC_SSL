@@ -350,18 +350,51 @@ class ViT_encoder(nn.Module):
         self.norm               = nn.LayerNorm(embedding_dim, eps=1e-6)
         self.head               = nn.Linear(embedding_dim, feature_size)
 
+    def pos_embedding_interp(self, x, h, w):
+
+        num_patches = x.shape[1] - 1 # because one is a class token
+        N = self.position_embedding.shape[1] - 1 # this is the shape the ViT expects
+
+        if num_patches == N: # won't include a check for the image being square
+          return self.position_embedding.shape[1] # because no interpolation needs to be done
+        # Now we need to do interpolation. So begin by separating class and position tokens
+        class_pos_embed   = self.position_embedding[:,0]
+        patch_pos_embed   = self.position_embedding[:,1:]
+        dim         = x.shape[-1] # patch embedding dimensionality
+        w0 = w // self.patch_embedding.patch_size
+        h0 = h // self.patch_embedding.patch_size
+        w0, h0 = w0+0.1, h0+0.1 # preventing some division by zero (just in case)
+
+        # Perform the interpolation
+        patch_pos_embed = F.interpolate(
+            patch_pos_embed.reshape(1, int(math.sqrt(N)), int(math.sqrt(N)), dim).permute(0, 3, 1, 2),
+            scale_factor=(w0 / math.sqrt(N), h0 / math.sqrt(N)),
+            mode='bicubic',
+        )
+        patch_pos_embed = patch_pos_embed.permute(0, 2, 3, 1).view(1, -1, dim)
+        return torch.cat((class_pos_embed.unsqueeze(0), patch_pos_embed), dim=1)
+
+    
     def forward(self,x):
 
-        batches             = x.shape[0] # total samples per batch
+        batches, _, W, H = x.shape # B, C, W, H
+
         x                   = self.patch_embedding(x) # convert images to patch embedding
-        class_token         = self.class_token.expand(batches, -1, -1) # 
+        class_token         = self.class_token.expand(batches, -1, -1) #
         x                   = torch.cat((class_token,x), dim=1) # class token is not appended to the patch tokens
-        x                   = x + self.position_embedding # Add the position embedding mechanism
+
+        # In classical vision transformers, the position embedding is strictly
+        # unchanged in the forward pass, this is because the ViT expects only one
+        # image size, none else.
+        # x                   = x + self.position_embedding # Add the position embedding mechanism
+        # However, we want a variable positional encoding, allowing us to
+        # use the same ViT architecture for multiple image sizes.
+        x                   = x + self.pos_embedding_interp(x, H, W)
         x                   = self.position_dropout(x)
         for block in self.blocks:
             x = block(x)
         x                   = self.norm(x) # add the layer norm mechanism now, giving us n_samples X (class token + patch token) X embedding dim
-        x                   = x[:, 1:, :].mean(dim=1)  # global pool without cls token, giving us n_samples X embedding_dim 
+        x                   = x[:, 1:, :].mean(dim=1)  # global pool without cls token, giving us n_samples X embedding_dim
         # the 1: is done in the second dim because the first entry there is the class token, which we do not need (why do we have it then? lol...)
         x                   = self.head(x) # expand feature set to intended feature size
         return x
