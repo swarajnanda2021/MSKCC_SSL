@@ -29,8 +29,13 @@ contrast_transforms = DataAug.ContrastiveTransformations(
     )
 
 # Initialize dataset and dataloader
-cifar_trainset  = CIFAR10(root='./data',train=True,download=True, transform=contrast_transforms) # please do not use this.
-train_loader    = DataLoader(cifar_trainset, batch_size=BATCH_SIZE, shuffle=True)
+cifar_trainset   = CIFAR10(root='./data',train=True,download=True, transform=contrast_transforms) # please do not use this.
+trainset         = torchvision.datasets.ImageFolder(
+                    root          =   './drive/MyDrive/SSL_Datasets/imagewoof2-320/train', # add your image path here
+                    transform     =   contrast_transforms,
+                    )
+
+train_loader    = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 
 # Initialize encoder and simCLR model
 #encoder = Encoder(4000)
