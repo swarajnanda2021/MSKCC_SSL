@@ -29,13 +29,13 @@ contrast_transforms = DataAug.ContrastiveTransformations(
     )
 
 # Initialize dataset and dataloader
-cifar_trainset  = CIFAR10(root='./data',train=True,download=True, transform=contrast_transforms)
+cifar_trainset  = CIFAR10(root='./data',train=True,download=True, transform=contrast_transforms) # please do not use this.
 train_loader    = DataLoader(cifar_trainset, batch_size=BATCH_SIZE, shuffle=True)
 
 # Initialize encoder and simCLR model
 #encoder = Encoder(4000)
 def resnet34():
-    layers   = [3, 5, 7, 5]
+    layers   = [3, 5, 7, 5] # [2 2 2 2] for resnet18()
     model    = Encoders.ResNet(Encoders.BasicBlock, layers,1000)
     return model
 
@@ -108,11 +108,65 @@ mae_model       = Methods.MAE(
 
                 )
 
-#mae_model.to(device)
+
+# The following are some settings I needed to begin the DiNO training.
+
+# I need this because we have to blank out the last fully connected layers of our encoder, and thus I need to understand the final 
+# size of the representations prior to the projection. Of course, you'll replace this with a fully connected layer while freezing the
+# entire pre-trained encoder using torch no_grad.
+def get_encoder_output_dim(encoder, input_size=(1, 3, 224, 224)): 
+    # Create a dummy input tensor of the specified size
+    encoder.head, encoder.fc = nn.Identity(), nn.Identity()
+    dummy_input = torch.randn(input_size)
+
+    # Run a forward pass through the encoder
+    with torch.no_grad():
+        encoder.eval()
+        output = encoder(dummy_input)
+
+    # Return the size of the output tensor (excluding the batch dimension)
+    return output.size(1)
+
+BATCH_SIZE = 80 # for the images I have, this filled up my GPU upto 14.7 GB.
+EPOCHS     = 50
+CROPS      = 6
+EMBEDDING_DIM = 512
+
+trainset_dino = torchvision.datasets.ImageFolder(
+                    root          =   './drive/MyDrive/SSL_Datasets/imagewoof2-320/train', # add your image path here
+                    transform     =   DataAug.DinoTransforms(
+                                  local_size         = 96,
+                                  global_size        = 224,
+                                  local_crop_scale   = (0.05, 0.4),
+                                  global_crop_scale  = (0.4, 1.0),
+                                  n_local_crops      = CROPS,
+                                  )
+                    )
+dataloader_dino = DataLoader(trainset_dino, batch_size=BATCH_SIZE, shuffle=True)
+
+
+encoder = resnet34()#ViT_tiny()#resnet50()#resnet18()
+encoder_output_dim = get_encoder_output_dim(encoder, input_size=(1, 3, 224, 224))
+print("Output dimension of encoder:", encoder_output_dim)
+
+dino_model      = Methods.DiNO(
+            encoder_embedding_dim = encoder_output_dim,#encoder_output_dim, based only on the global crop size.
+            feature_size          = 128,
+            encoder               = encoder,
+            device                = device,
+            batch_size            = BATCH_SIZE,  # Adjust as needed
+            epochs                = EPOCHS,  # Adjust as needed
+            temperature_teacher   = 0.04,  # Example value, adjust as needed
+            temperature_student   = 0.07,  # Example value, adjust as needed
+            ncrops                = CROPS,
+            savepath              = './checkpoints/test.pth',
+        )
+
 
 if __name__ == "__main__":
       
       simclr_loss_iter  =   simclr_model.train(train_loader)
+      #dino_loss_iter    =   dino_model.train(dataloader_dino)     
       #nnclr_loss_iter   =   nnclr_model.train(train_loader)
       #mae_loss_iter     = mae_model.train(train_loader)  
 
