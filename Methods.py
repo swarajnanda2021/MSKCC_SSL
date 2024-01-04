@@ -6,7 +6,7 @@ from tqdm import tqdm
 from torchvision import models
 from Encoders import PatchEmbed, TransformerBlock
 from Scheduler import CustomScheduler
-from Utils import SupportSet
+from Utils import SupportSet, MultiCropWrapper, DiNOProjection
 # Method 1: SimCLR
 
 
@@ -541,13 +541,9 @@ class MAE(nn.Module):
 # Method 4) DiNO
 
 
-
-
-
-
 class DiNO(nn.Module):
 
-    def __init__(self, encoder_embedding_dim, feature_size, encoder, device, batch_size, epochs,  temperature_teacher, temperature_student, ncrops, alpha = 0.996):
+    def __init__(self, encoder_embedding_dim, feature_size, encoder, device, batch_size, epochs,  temperature_teacher, temperature_student, ncrops, savepath, alpha = 0.996):
         super().__init__()
         # both student and teacher are the same encoders
         #self.student    = encoder.to(device)
