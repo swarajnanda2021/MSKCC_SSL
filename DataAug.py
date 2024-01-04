@@ -1,5 +1,6 @@
 from torchvision import transforms
 from torchvision.datasets import ImageFolder
+from PIL import ImageOps
 
 # For SimCLR, NNCLR, and other invariance based methods
 class ContrastiveTransformations(object):
