@@ -21,7 +21,6 @@ class simCLR(nn.Module): # the similarity loss of simCLR
         self.device = device
         self.savepath  = savepath
         self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-        #scheduler     = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
         self.scheduler = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
 
 
@@ -118,7 +117,7 @@ class simCLR(nn.Module): # the similarity loss of simCLR
               self.save_checkpoint(file_path)
 
 
-            #self.scheduler.step(epoch)
+            self.scheduler.step(epoch)
 
 
         return self.losses
