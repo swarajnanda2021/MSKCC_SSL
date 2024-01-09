@@ -18,7 +18,7 @@ class SupportSet(nn.Module):
         self.register_buffer("queue", tensor = torch.randn(queue_size,feature_size,dtype = torch.float))
         self.register_buffer("queue_pointer", tensor = torch.zeros(1,dtype=torch.long))
 
-    @torch.no_grad # prevent the following from participating in gradient calculations as it is just a queue update
+    @torch.no_grad() # prevent the following from participating in gradient calculations as it is just a queue update
     def update(self, batch):
         batch_size , _  = batch.shape
         pointer         = int(self.queue_pointer) # it gives an idea of what is the filled state of the queue
