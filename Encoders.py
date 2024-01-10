@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 
 # Encoder 0: Simple ConvNet
 
