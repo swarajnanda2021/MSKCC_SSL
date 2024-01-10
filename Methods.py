@@ -575,8 +575,7 @@ class DiNO(nn.Module):
         self.batch_size = batch_size
         self.epochs     = epochs
         self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95), weight_decay=0.05)
-        #self.scheduler  = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-        self.scheduler  = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-6, final_lr=1e-3, total_epochs=50)
+        self.scheduler  = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-6, final_lr=1e-3, total_epochs=self.epochs)
         # DiNO specific parameters
         self.base_momentum  = alpha
         self.final_momentum = 1
