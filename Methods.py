@@ -593,7 +593,13 @@ class DiNO(nn.Module):
     @torch.no_grad()
     def update_momentum(self, current_epoch):
         # Cosine schedule to update momentum (alpha)
-        self.alpha = self.final_momentum - 0.5 * (self.final_momentum - self.base_momentum) * \
+        self.alpha = self.final_teacher_temp - 0.5 * (self.final_teacher_temp - self.final_teacher_temp) * \
+                     (1 + np.cos(np.pi * current_epoch / self.epochs))
+
+
+    @torch.no_grad()
+    def update_teacher_temp(self, current_epoch):
+        self.t_teacher = self.final_momentum - 0.5 * (self.final_momentum - self.base_momentum) * \
                      (1 + np.cos(np.pi * current_epoch / self.epochs))
 
 
