@@ -7,6 +7,7 @@ from torchvision import models
 from Encoders import PatchEmbed, TransformerBlock
 from Scheduler import CustomScheduler
 from Utils import SupportSet, MultiCropWrapper, DiNOProjection
+import numpy as np
 # Method 1: SimCLR
 
 
