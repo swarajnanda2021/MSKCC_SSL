@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import math
 # Encoder 0: Simple ConvNet
 
 class SimpleEncoder(nn.Module):
