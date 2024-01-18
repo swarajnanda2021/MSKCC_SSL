@@ -723,6 +723,189 @@ class DiNO(nn.Module):
 
 
 
+########### BYOL method
+
+
+
+
+# Define the BYOL method
+
+class BYOL(nn.Module):
+
+    def __init__(self,
+                 encoder,
+                 device,
+                 epochs,
+                 savepath,
+                 batch_size,
+                 feature_size,  # Size of vector at the end of projection operation
+                 projection_hidden_size_ratio, # to be multiplied with encoder size
+                 prediction_hidden_size_ratio, # to be multiplied with feature size
+                 alpha, # momentum parameter
+                 ):
+        super().__init__()
+        # Joint embedding architecture related initialization
+        self.student = encoder.to(device)
+        self.teacher = encoder.to(device)
+        self.student_proj = nn.Sequential(
+                            nn.Linear(feature_size,feature_size * projection_hidden_size_ratio),
+                            nn.BatchNorm1d(feature_size * projection_hidden_size_ratio),
+                            nn.ReLU(),
+                            nn.Linear(feature_size * projection_hidden_size_ratio,feature_size * projection_hidden_size_ratio),
+                            nn.BatchNorm1d(feature_size * projection_hidden_size_ratio),
+                            nn.ReLU(),
+                            nn.Linear(feature_size * projection_hidden_size_ratio,feature_size),
+                            nn.BatchNorm1d(feature_size)
+                            ).to(device)
+        self.teacher_proj = self.student_proj.to(device)
+        self.student_pred = nn.Sequential(
+                            nn.Linear(feature_size,feature_size * prediction_hidden_size_ratio),
+                            nn.BatchNorm1d(feature_size * prediction_hidden_size_ratio),
+                            nn.ReLU(),
+                            nn.Linear(feature_size * prediction_hidden_size_ratio,feature_size)
+                            )
+        # Inherit the weighted norm from DiNO and add it to the student prediction head
+        # Apply weight norm to the last layer of student_pred
+        self.student_pred[-1] = self._init_weight_norm_layer(
+            feature_size * prediction_hidden_size_ratio,
+            feature_size
+            )
+        # Apply weight initialization to student_pred layers
+        self.student_pred.apply(self._init_weights_)
+        self.student_pred = self.student_pred.to(device)
+
+        # Training related initialization
+        self.device     = device
+        self.epochs     = epochs
+        self.batch_size = batch_size
+        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
+        self.scheduler  = Scheduler.CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-5, final_lr=1e-3, total_epochs=epochs)
+        self.savepath   = savepath
+        self.alpha      = alpha  # momentum blending constant
+        self.final_momentum = 1
+        self.base_momentum  = alpha
+
+    def _init_weight_norm_layer(self, in_features, out_features):
+        layer = nn.utils.weight_norm(nn.Linear(in_features, out_features, bias=False))
+        layer.weight_g.data.fill_(1)  # Initialize weight_g
+        layer.weight_g.requires_grad = False  # Disable gradient for weight_g
+        return layer
+
+    def _init_weights_(self, m):
+        if isinstance(m, nn.Linear):
+            nn.init.normal_(m.weight, std=.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def update_momentum(self,current_epoch):
+        self.alpha = self.final_momentum - 0.5 * (self.final_momentum - self.base_momentum) * \
+                    (1 + np.cos(np.pi * current_epoch / self.epochs))
+
+    def update_teacher(self):
+        with torch.no_grad():
+            # update teacher encoder
+            for student_params, teacher_params in zip(self.student.parameters(), self.teacher.parameters()):
+                teacher_params.data = self.alpha*teacher_params.data + (1.0-self.alpha)*student_params.data
+            # update teacher projector
+            for student_params, teacher_params in zip(self.student_proj.parameters(), self.teacher_proj.parameters()):
+                teacher_params.data = self.alpha*teacher_params.data + (1.0-self.alpha)*student_params.data
+
+    def BYOL_loss(self, x1, x2):
+        # Encode
+        f1      , f2        = self.teacher(x1), self.student(x2)
+        # Project
+        proj1   , proj2     = self.teacher_proj(f1), self.student_proj(f2)
+        # Student prediction
+        pred2               = self.student_pred(proj2)
+
+        proj1 = torch.nn.functional.normalize(proj1, dim=-1, p=2)
+        pred2 = torch.nn.functional.normalize(pred2, dim=-1, p=2)
+        # Compute the loss
+
+        loss = 2 - 2 * (proj1.detach() * pred2).sum(dim=-1)
+        return loss
+
+    def BYOL_loss_symmetric(self, imgs):
+        # As discussed in the paper, the BYOL loss is symmetric. This is easy
+        # to implement because we just switch the augmented views to recompute
+        # the MSE loss. We then add it to the original loss array, and take an
+        # average.
+        loss        = self.BYOL_loss(imgs[:imgs.shape[0]//2], imgs[imgs.shape[0]//2:])
+        loss        += self.BYOL_loss(imgs[imgs.shape[0]//2:], imgs[:imgs.shape[0]//2])
+
+        loss = loss.mean()
+        return loss
+
+
+    def train(self,dataloader):
+
+        self.losses = []
+
+        for epoch in range(self.epochs):
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.epochs}")
+
+
+            for views, _ in train_loader:
+                if views[0].size(0) != self.batch_size: # skip iter if batch size is smaller than expected
+                    continue
+                # Concatenate images
+                imgs = torch.cat(views, dim=0).to(self.device)
+
+                # Calculate loss
+                loss = self.BYOL_loss_symmetric(imgs)
+                # Append the loss
+                self.losses.append(loss.item())
+                # Perform optimization
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+
+                # Get current learning rate
+                current_lr = self.optimizer.param_groups[0]['lr']
+
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=current_lr)
+
+
+            # Update momentum and teacher
+            self.update_momentum(epoch)
+            self.update_teacher()
+
+            # Save model checkpoint at regular intervals
+            if epoch % 10 == 0:
+                file_path = self.savepath
+                # Save the current state of the model and optimizer
+                self.save_checkpoint(file_path)
+
+            self.scheduler.step(epoch)
+
+        return self.losses
+
+
+    def get_encoder(self):
+        return self.teacher, self.student
+
+    def save_checkpoint(self, file_path):
+
+        checkpoint = {
+        'model_state_dict': self.state_dict(),
+        'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
+
+    def load_checkpoint(self, file_path, device):
+
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
+
+
+
+
+
 
 
 
