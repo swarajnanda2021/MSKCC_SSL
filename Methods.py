@@ -1035,4 +1035,124 @@ class VICReg(nn.Module):
 
 
 
+class BarlowTwins(nn.Module): # the similarity loss of simCLR
+
+    def __init__(self, encoder, device,batch_size,epochs,savepath, feature_size, projection_hidden_size_ratio, gamma):
+        super().__init__()
+        self.model = encoder.to(device) # define the encoder here
+        self.criterion = torch.nn.CrossEntropyLoss().to(device)
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.device = device
+        self.savepath  = savepath
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
+        self.scheduler = Scheduler.CosineAnnealingWarmupRestarts(
+                        self.optimizer,
+                        first_cycle_steps=self.epochs - 10,  # Total epochs minus warm-up epochs
+                        cycle_mult=1.0,  # Keep cycle length constant after each restart
+                        max_lr=1e-3,  # Maximum LR after warm-up
+                        min_lr=1e-5,  # Minimum LR
+                        warmup_steps=10,  # Warm-up for 10 epochs
+                        gamma=1.0  # Keep max_lr constant after each cycle
+                    )
+        # Barlow Twin specific implementation
+        # projector
+        self.projector =  nn.Sequential(
+                            nn.Linear(feature_size,feature_size * projection_hidden_size_ratio),
+                            nn.BatchNorm1d(feature_size * projection_hidden_size_ratio),
+                            nn.ReLU(),
+                            nn.Linear(feature_size * projection_hidden_size_ratio,feature_size * projection_hidden_size_ratio),
+                            nn.BatchNorm1d(feature_size * projection_hidden_size_ratio),
+                            nn.ReLU(),
+                            nn.Linear(feature_size * projection_hidden_size_ratio,feature_size),
+                            nn.BatchNorm1d(feature_size)
+                            ).to(device)
+
+        # normalization layer for the representations from both branches
+        self.bn = nn.BatchNorm1d(feature_size, affine=False).to(device)
+
+        # The loss calculated from gamma
+        self.gamma  = gamma
+
+    def BarlowTwins_loss(self, imgs):
+        # Unpack the images and encode them using the same encoder
+        x1      , x2        = imgs[:imgs.shape[0]//2], imgs[imgs.shape[0]//2:]
+        f1      , f2        = self.model(x1), self.model(x2)
+        z1      , z2        = self.projector(f1), self.projector(f2)
+        z1      , z2        = self.bn(z1), self.bn(z2) # batch normalization
+
+        # Calculate the cross-correlation matrix
+        corr_matrix = z1.T @ z2
+        corr_matrix.div_(self.batch_size)
+
+        # Calculate the on-diagonal and off-diagonal loss
+        on_diag = torch.diagonal(corr_matrix).add_(-1).pow_(2).sum()
+        off_diag = corr_matrix.pow_(2).fill_diagonal_(0).sum()
+
+        loss = on_diag + self.gamma * off_diag
+        return loss
+
+    def get_encoder(self):
+        return self.model
+
+    def save_checkpoint(self, file_path):
+        """
+        Save the model checkpoint.
+        """
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
+
+    def load_checkpoint(self, file_path, device):
+        """
+        Load the model from the checkpoint.
+        """
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
+
+
+
+    def train(self, dataloader):
+        self.losses = []  # Track losses
+
+        # Start training
+        for epoch in range(self.epochs):
+            # Initialize tqdm progress bar
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch + 1}/{self.epochs}")
+
+            for views, _ in train_loader:  # Unpack data and labels from each batch
+                if views[0].size(0) != self.batch_size:
+                    continue  # Skip this batch
+                imgs = torch.cat(views, dim=0).to(self.device)
+
+                # Calculate loss
+                loss = self.BarlowTwins_loss(imgs)
+                # Append the loss
+                self.losses.append(loss.item())
+
+                # Perform optimization
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                # Update tqdm progress bar with the current loss
+                train_loader.set_postfix(loss=loss.item())
+
+            if (int(epoch)%10 == 0):
+              file_path = self.savepath
+
+              # Save the current state of the model and optimizer
+              self.save_checkpoint(file_path)
+
+
+            self.scheduler.step(epoch)
+
+
+        return self.losses
+
 
