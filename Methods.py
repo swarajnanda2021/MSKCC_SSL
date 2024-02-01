@@ -906,6 +906,133 @@ class BYOL(nn.Module):
 
 
 
+class VICReg(nn.Module):
+    def __init__(self,
+                 encoder,
+                 device,
+                 epochs,
+                 savepath,
+                 batch_size,
+                 feature_size,
+                 projection_hidden_size_ratio,
+                 projector_num_layers,
+                 output_projector_size):
+        super().__init__()
+        # Joint embedding architecture related initialization
+        self.encoder    = encoder.to(device)
+        self.projector  = self._create_mlp(feature_size, projection_hidden_size_ratio, output_projector_size, projector_num_layers).to(device)
+        
+        # Training related initialization
+        self.device = device
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
+        #self.scheduler  = Scheduler.CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-3, final_lr=1e-5, total_epochs=epochs)
+        self.scheduler = Scheduler.CosineAnnealingWarmupRestarts(
+                        self.optimizer,
+                        first_cycle_steps=self.epochs - 10,  # Total epochs minus warm-up epochs
+                        cycle_mult=1.0,  # Keep cycle length constant after each restart
+                        max_lr=1e-3,  # Maximum LR after warm-up
+                        min_lr=1e-5,  # Minimum LR
+                        warmup_steps=10,  # Warm-up for 10 epochs
+                        gamma=1.0  # Keep max_lr constant after each cycle
+                    )
+        self.savepath = savepath
+        self.alpha    = 25
+        self.beta     = 25
+        self.gamma    = 1
+
+    def _create_mlp(self, input_size, hidden_size_ratio, output_size, num_layers=3):
+        hidden_size = int(input_size * hidden_size_ratio)
+        mlp_layers = [nn.Linear(input_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU()]
+        for _ in range(num_layers - 2):
+            mlp_layers += [nn.Linear(hidden_size, hidden_size), nn.BatchNorm1d(hidden_size), nn.ReLU()]
+        mlp_layers.append(nn.Linear(hidden_size, output_size))
+        return nn.Sequential(*mlp_layers)
+
+    
+    def vicreg_loss(self, x1, x2):
+        # Encode and Project (Teacher-Student architecture)
+        proj1, proj2 = self.projector(self.encoder(x1)), self.projector(self.encoder(x2))
+
+        # Invariance loss (Mean Squared Error loss)
+        invariance_loss = F.mse_loss(proj1, proj2)
+
+        # Variance loss
+        std_proj1 = torch.sqrt(proj1.var(dim=0) + 1e-5)
+        std_proj2 = torch.sqrt(proj2.var(dim=0) + 1e-5)
+        variance_loss = torch.mean(F.relu(1 - std_proj1)) / 2 + torch.mean(F.relu(1 - std_proj2)) / 2
+
+        # Covariance loss
+        proj1 = proj1 - proj1.mean(dim=0)
+        proj2 = proj2 - proj2.mean(dim=0)
+        cov_proj1 = (proj1.T @ proj1) / (proj1.size(0) - 1)
+        cov_proj2 = (proj2.T @ proj2) / (proj2.size(0) - 1)
+        cov_loss = self.off_diagonal(cov_proj1).pow_(2).sum() / proj1.size(1) + \
+                  self.off_diagonal(cov_proj2).pow_(2).sum() / proj2.size(1)
+
+        # Combining all loss components
+        loss = (self.alpha*invariance_loss) + (self.beta*variance_loss) + (self.gamma*cov_loss)
+        return loss
+
+    def off_diagonal(self, x):
+        # Return a flattened view of the off-diagonal elements of a square matrix
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+
+    def train(self, dataloader):
+        self.losses = []
+
+        for epoch in range(self.epochs):
+            train_loader = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.epochs}")
+
+            for views, _ in train_loader:
+                if views[0].size(0) != self.batch_size:
+                    continue
+
+                imgs = torch.cat(views, dim=0).to(self.device)
+                x1, x2 = imgs[:imgs.shape[0]//2], imgs[imgs.shape[0]//2:]
+                
+                loss = self.vicreg_loss(x1, x2)
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                self.losses.append(loss.item())
+                train_loader.set_postfix(loss=loss.item(), lr=self.optimizer.param_groups[0]['lr'])
+
+            
+            # Save model checkpoint at regular intervals
+            if epoch % 10 == 0:
+                file_path = self.savepath
+                # Save the current state of the model and optimizer
+                self.save_checkpoint(file_path)
+
+            self.scheduler.step(epoch)
+
+        return self.losses
+
+    def get_encoder(self):
+        return self.teacher, self.student
+
+    def save_checkpoint(self, file_path):
+
+        checkpoint = {
+        'model_state_dict': self.state_dict(),
+        'optimizer_state_dict': self.optimizer.state_dict()
+        }
+        torch.save(checkpoint, file_path)
+        print(f"Checkpoint saved to {file_path}")
+
+    def load_checkpoint(self, file_path, device):
+
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        print(f"Checkpoint loaded from {file_path}")
+
 
 
 
