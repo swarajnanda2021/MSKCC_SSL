@@ -168,10 +168,47 @@ dino_model      = Methods.DiNO(
         )
 
 
+BYOL_model = BYOL(
+                encoder     = encoder,
+                device      = device,
+                savepath   = './drive/MyDrive/SSL_Models/BYOL_model.pth',
+                batch_size  = BATCH_SIZE,
+                epochs      = 50,
+                feature_size = FEATURE_SIZE,
+                projection_hidden_size_ratio = 2,
+                prediction_hidden_size_ratio = 2,
+                alpha       = 0.96
+          )
+
+
+barlow_twins = BarlowTwins(encoder=encoder,
+                           device=device,
+                           batch_size=BATCH_SIZE,
+                           epochs=50,
+                           savepath='./drive/MyDrive/SSL_Models/barlowtwins_checkpoint.pth',
+                           feature_size=FEATURE_SIZE, # important: a large projector output size often improves performance. It might be worthwhile to have this implemented.
+                           projection_hidden_size_ratio=2,
+                           gamma=0.0051)
+
+
+vicreg_model = VICReg(encoder=encoder,
+                      device=device,
+                      epochs=100,
+                      savepath='./drive/MyDrive/SSL_Models/VICREG_checkpoint.pth',
+                      batch_size=BATCH_SIZE,
+                      feature_size=FEATURE_SIZE,
+                      projection_hidden_size_ratio=2,
+                      projector_num_layers=2,
+                      output_projector_size=FEATURE_SIZE*2*2)
+
+
 if __name__ == "__main__":
       
-      simclr_loss_iter  =   simclr_model.train(train_loader)
-      #dino_loss_iter    =   dino_model.train(dataloader_dino)     
-      #nnclr_loss_iter   =   nnclr_model.train(train_loader)
-      #mae_loss_iter     = mae_model.train(train_loader)  
+      simclr_loss_iter               =   simclr_model.train(train_loader)
+      #dino_loss_iter                =   dino_model.train(dataloader_dino) 
+      #vicreg_loss_iter              =   vicreg_model.train(train_loader)  
+      #nnclr_loss_iter               =   nnclr_model.train(train_loader)
+      #mae_loss_iter                 =   mae_model.train(train_loader)  
+      #byol_loss_iter                =   BYOL_model.train(train_loader)
+      #barlowtwins_loss_iter         =   barlow_twins.train(train_loader)
 
