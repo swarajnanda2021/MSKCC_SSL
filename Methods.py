@@ -8,6 +8,7 @@ from Encoders import PatchEmbed, TransformerBlock
 from Scheduler import CustomScheduler
 from Utils import SupportSet, MultiCropWrapper, DiNOProjection
 import numpy as np
+import Scheduler
 # Method 1: SimCLR
 
 
