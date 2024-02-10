@@ -68,7 +68,7 @@ def resnet50(outputchannels=1000, modification_type={''}):
 # The following modification types are possible: 
 # 1) Resnets B, C, and D come from https://arxiv.org/pdf/1812.01187.pdf       
 # 2) Resnext comes from https://arxiv.org/pdf/1611.05431.pdf and grouped convolutions are currently fixed at a cardinality of 32 only
-modification_type={'resnetB', 'resnetC','resnetD','resnext'}
+modification_type={'resnetB', 'resnetC','resnetD','resnext','squeezeandexcite'}
 
 def ViTencoder():
         model = Encoders.ViT_encoder(
