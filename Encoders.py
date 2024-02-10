@@ -61,8 +61,6 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         if self.downsample is not None:
             identity = self.downsample(x)
 
-        print(identity.shape,out.shape)
-
         out += identity
         out = self.relu(out)
 
@@ -110,8 +108,6 @@ class Bottleneck(nn.Module):
 
         if self.downsample is not None:
             identity = self.downsample(identity)
-
-        print(identity.shape,out.shape)
 
         out += identity
         out = self.relu(out)
