@@ -124,12 +124,7 @@ class Bottleneck(nn.Module):
 
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
-        if 'squeezeandexcite' in modification_type and stride != 1:
-            self.squeezeandexcite3 = SqueezeAndExcite(out_channels * self.expansion)
-        else:
-            self.squeezeandexcite3 = nn.Identity()
-
-
+        
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -147,7 +142,6 @@ class Bottleneck(nn.Module):
 
         out = self.conv3(out)
         out = self.bn3(out)
-        out = self.squeezeandexcite3(out)
 
         if self.downsample is not None:
             identity = self.downsample(identity)
