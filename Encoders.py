@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import math
 
 # Encoder 1: ResNet with many modifications (incl. resnext)
-
 class DownsampleModule(nn.Module):
     def __init__(self, in_channels, out_channels, stride=1, modification_type={''}):
         super(DownsampleModule, self).__init__()
@@ -24,6 +23,25 @@ class DownsampleModule(nn.Module):
     def forward(self, x):
         return self.downsample(x)
 
+
+class SqueezeAndExcite(nn.Module):
+    def __init__(self, in_channels,reduction = 0.25): # keep the reduction fixed 
+        super(SqueezeAndExcite, self).__init__()
+        self.avgpool  = nn.AdaptiveAvgPool2d(1)
+        self.fc       = nn.Sequential(
+            nn.Linear(in_channels, int(in_channels * reduction)),
+            nn.ReLU(inplace=True),
+            nn.Linear(int(in_channels * reduction), in_channels),
+            nn.Sigmoid()                      
+            )
+    def forward(self,x):
+        b, c, _, _ = x.size()
+        y = self.avgpool(x).view(b,c)
+        y = self.fc(y).view(b,c,1,1)
+
+        return x * y.expand_as(x)
+
+
 class BasicBlock(nn.Module): # ResNet 18 and 34
     expansion = 1
 
@@ -40,12 +58,21 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         else:
             groups = 1
 
-
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=conv1_stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)
+        if 'squeezeandexcite' in modification_type and stride != 1:
+            self.squeezeandexcite1 = SqueezeAndExcite(out_channels)
+        else:
+            self.squeezeandexcite1 = nn.Identity()
+
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride = conv2_stride,padding=1, bias=False, groups=groups)
         self.bn2 = nn.BatchNorm2d(out_channels)
+        if 'squeezeandexcite' in modification_type and stride != 1:
+            self.squeezeandexcite2 = SqueezeAndExcite(out_channels)
+        else:
+            self.squeezeandexcite2 = nn.Identity()
+
         self.downsample = downsample
 
     def forward(self, x):
@@ -53,10 +80,12 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
 
         out = self.conv1(x)
         out = self.bn1(out)
+        out = self.squeezeandexcite1(out)
         out = self.relu(out)
 
         out = self.conv2(out)
         out = self.bn2(out)
+        out = self.squeezeandexcite2(out)
 
         if self.downsample is not None:
             identity = self.downsample(x)
@@ -85,10 +114,22 @@ class Bottleneck(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=conv1_stride, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)
+
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=conv2_stride, padding=1,bias=False, groups = groups)
         self.bn2 = nn.BatchNorm2d(out_channels)
+        if 'squeezeandexcite' in modification_type and stride != 1: # all 3x3 convs after stage 1 have squeeze and excite function
+            self.squeezeandexcite2 = SqueezeAndExcite(out_channels)
+        else:
+            self.squeezeandexcite2 = nn.Identity()
+
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
+        if 'squeezeandexcite' in modification_type and stride != 1:
+            self.squeezeandexcite3 = SqueezeAndExcite(out_channels * self.expansion)
+        else:
+            self.squeezeandexcite3 = nn.Identity()
+
+
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -101,10 +142,12 @@ class Bottleneck(nn.Module):
 
         out = self.conv2(out)
         out = self.bn2(out)
+        out = self.squeezeandexcite2(out)
         out = self.relu(out)
 
         out = self.conv3(out)
         out = self.bn3(out)
+        out = self.squeezeandexcite3(out)
 
         if self.downsample is not None:
             identity = self.downsample(identity)
@@ -147,7 +190,6 @@ class ResNet(nn.Module):
         # Maxpooling
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-
         # Residual branch stages
         self.layer1 = self._make_layer(block, 64, layers[0], stride=1, modification_type = {''}) # no tweaks whatsoever to the first except if resnext is chosen
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2, modification_type=modification_type)
@@ -188,7 +230,6 @@ class ResNet(nn.Module):
         x = self.fc(x)
 
         return x
-
 
 # Encoder 2: ViT
 
