@@ -161,7 +161,7 @@ class ResNet(nn.Module):
         
         # Final average pool and fully connected linear layer
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = nn.Linear(512 * block.expansion, outputchannels)
 
     def _make_layer(self, block, out_channels, blocks, stride=1, modification_type={''}):
         downsample = None
