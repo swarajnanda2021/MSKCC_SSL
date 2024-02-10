@@ -147,14 +147,9 @@ class ResNet(nn.Module):
         # Maxpooling
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
-        # layer 1 modifications (add resnext in layer1 (or stage 1) if asked)
-        if 'resnext' in modification_type:
-          layer1_mod = 'resnext'
-        else:
-          layer1_mod = ''
 
         # Residual branch stages
-        self.layer1 = self._make_layer(block, 64, layers[0], stride=1, modification_type = {layer1_mod}) # no tweaks whatsoever to the first except if resnext is chosen
+        self.layer1 = self._make_layer(block, 64, layers[0], stride=1, modification_type = {''}) # no tweaks whatsoever to the first except if resnext is chosen
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2, modification_type=modification_type)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2, modification_type=modification_type)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2, modification_type=modification_type)
