@@ -38,16 +38,37 @@ trainset         = torchvision.datasets.ImageFolder(
 train_loader    = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 
 # Initialize encoder and simCLR model
-#encoder = Encoder(4000)
-def resnet34():
-    layers   = [3, 5, 7, 5] # [2 2 2 2] for resnet18()
-    model    = Encoders.ResNet(Encoders.BasicBlock, layers,1000)
-    return model
+def resnet18(outputchannels=1000, modification_type={''}):
+    
+    return ResNet(
+        block = Encoders.BasicBlock,
+        layers = [2, 2, 2, 2],
+        outputchannels=outputchannels, 
+        modification_type=modification_type
+        )
 
-def resnet50():# 24.557120M parameters
-        layers=[3, 4, 6, 3]
-        return Encoders.ResNet(block = Encoders.Bottleneck, layers = layers, outputchannels = 512)
+def resnet34(outputchannels=1000, modification_type={''}):
+    
+    return ResNet(
+        block = Encoders.BasicBlock,
+        layers = [3, 5, 7, 5], 
+        outputchannels=outputchannels, 
+        modification_type=modification_type
+        )
 
+
+def resnet50(outputchannels=1000, modification_type={''}):
+    
+    return ResNet(
+        block = Encoders.Bottleneck, 
+        layers = [3, 4, 6, 3], 
+        outputchannels=outputchannels, 
+        modification_type=modification_type
+        )
+# The following modification types are possible: 
+# 1) Resnets B, C, and D come from https://arxiv.org/pdf/1812.01187.pdf       
+# 2) Resnext comes from https://arxiv.org/pdf/1611.05431.pdf and grouped convolutions are currently fixed at a cardinality of 32 only
+modification_type={'resnetB', 'resnetC','resnetD','resnext'}
 
 def ViTencoder():
         model = Encoders.ViT_encoder(
