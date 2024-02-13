@@ -37,6 +37,8 @@ trainset         = torchvision.datasets.ImageFolder(
 
 train_loader    = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 
+
+
 # Initialize encoder and simCLR model
 def resnet18(outputchannels=1000, modification_type={''}):
     
@@ -44,7 +46,14 @@ def resnet18(outputchannels=1000, modification_type={''}):
         block = Encoders.BasicBlock,
         layers = [2, 2, 2, 2],
         outputchannels=outputchannels, 
-        modification_type=modification_type
+        modification_type={
+                  'resnetB', 
+                  'resnetC',
+                  'resnetD',
+                  'resnext', 
+                  'squeezeandexcite',
+                  'stochastic_depth',
+                  }
         )
 
 def resnet34(outputchannels=1000, modification_type={''}):
@@ -53,7 +62,14 @@ def resnet34(outputchannels=1000, modification_type={''}):
         block = Encoders.BasicBlock,
         layers = [3, 5, 7, 5], 
         outputchannels=outputchannels, 
-        modification_type=modification_type
+        modification_type={
+                  'resnetB', 
+                  'resnetC',
+                  'resnetD',
+                  'resnext', 
+                  'squeezeandexcite',
+                  'stochastic_depth',
+                  }
         )
 
 
@@ -63,12 +79,20 @@ def resnet50(outputchannels=1000, modification_type={''}):
         block = Encoders.Bottleneck, 
         layers = [3, 4, 6, 3], 
         outputchannels=outputchannels, 
-        modification_type=modification_type
+        modification_type={
+                  'resnetB', 
+                  'resnetC',
+                  'resnetD',
+                  'resnext', 
+                  'squeezeandexcite',
+                  'stochastic_depth',
+                  }
         )
 # The following modification types are possible: 
 # 1) Resnets B, C, and D come from https://arxiv.org/pdf/1812.01187.pdf       
 # 2) Resnext comes from https://arxiv.org/pdf/1611.05431.pdf and grouped convolutions are currently fixed at a cardinality of 32 only
-modification_type={'resnetB', 'resnetC','resnetD','resnext','squeezeandexcite'}
+# 3) Squeeze and excite comes from https://arxiv.org/pdf/1709.01507.pdf and here has a reduction of 1/4th in between the two linear layers in the SE blocks
+# 4) Stochastic depth comes from https://arxiv.org/pdf/1603.09382.pdf and here has a linear probability ratio between blocks in a stage of resnet
 
 def ViTencoder():
         model = Encoders.ViT_encoder(
