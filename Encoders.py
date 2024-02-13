@@ -45,8 +45,11 @@ class SqueezeAndExcite(nn.Module):
 class BasicBlock(nn.Module): # ResNet 18 and 34
     expansion = 1
 
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}, dropoutprob = 0.0):
         super(BasicBlock, self).__init__()
+
+        self.prob_dropout = dropoutprob
+
         conv1_stride = 1
         conv2_stride = stride
         if 'resnetB' in modification_type and stride != 1:
@@ -90,6 +93,14 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         if self.downsample is not None:
             identity = self.downsample(x)
 
+        if self.training and self.prob_dropout > 0.0 and self.downsample is None:
+          
+          # Calculate the survival probability of this block. Make a binary choice between 0 and 1 based on self.prob_dropout
+          survival_prob = 1.0 - self.prob_dropout
+          random_tensor = torch.rand([], dtype=out.dtype, device=out.device) + survival_prob
+          binary_tensor = random_tensor.floor()  # This will be 1.0 with probability 'survival_prob'
+          out = out * binary_tensor
+        
         out += identity
         out = self.relu(out)
 
@@ -98,8 +109,11 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
 class Bottleneck(nn.Module):
     expansion = 4
 
-    def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}):
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}, dropoutprob = 0.0):
         super(Bottleneck, self).__init__()
+
+        self.prob_dropout = dropoutprob
+
         conv1_stride = 1
         conv2_stride = stride
         if 'resnetB' in modification_type and stride != 1:
@@ -124,13 +138,24 @@ class Bottleneck(nn.Module):
 
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
-        
+
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
     def forward(self, x):
         identity = x
 
+        # return relu of x if survival is not possible
+        if self.training and self.prob_dropout > 0.0 and self.downsample is None:
+          
+          # Calculate the survival probability of this block. Make a binary choice between 0 and 1 based on self.prob_dropout
+          survival_prob = 1.0 - self.prob_dropout
+          random_tensor = torch.rand([], dtype=x.dtype, device=x.device) + survival_prob
+          binary_tensor = random_tensor.floor()  # This will be 1.0 with probability 'survival_prob'
+          if binary_tensor.item() == 0.0:
+            return F.relu(identity, inplace=False)
+
+        # else just continue with block processing
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -200,10 +225,15 @@ class ResNet(nn.Module):
             downsample = DownsampleModule(self.in_channels, out_channels * block.expansion, stride, modification_type)
 
         layers = []
-        layers.append(block(self.in_channels, out_channels, stride, downsample, modification_type))
+        layers.append(block(self.in_channels, out_channels, stride, downsample, modification_type, dropoutprob = 0.0))
         self.in_channels = out_channels * block.expansion
-        for _ in range(1, blocks):
-            layers.append(block(self.in_channels, out_channels))
+        for block_idx in range(1, blocks):
+          if 'stochastic_depth' in modification_type:
+            dropoutprob = 0.5 * (block_idx / (blocks - 1))  
+          else:
+            dropoutprob = 0.0
+
+          layers.append(block(self.in_channels, out_channels, dropoutprob = dropoutprob))
 
         return nn.Sequential(*layers)
 
