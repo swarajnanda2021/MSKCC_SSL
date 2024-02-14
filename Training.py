@@ -213,7 +213,7 @@ dino_model      = Methods.DiNO(
         )
 
 
-BYOL_model = BYOL(
+BYOL_model = Methods.BYOL(
                 encoder     = encoder,
                 device      = device,
                 savepath   = './drive/MyDrive/SSL_Models/BYOL_model.pth',
@@ -226,7 +226,7 @@ BYOL_model = BYOL(
           )
 
 
-barlow_twins = BarlowTwins(encoder=encoder,
+barlow_twins = Methods.BarlowTwins(encoder=encoder,
                            device=device,
                            batch_size=BATCH_SIZE,
                            epochs=50,
@@ -236,7 +236,7 @@ barlow_twins = BarlowTwins(encoder=encoder,
                            gamma=0.0051)
 
 
-vicreg_model = VICReg(encoder=encoder,
+vicreg_model = Methods.VICReg(encoder=encoder,
                       device=device,
                       epochs=100,
                       savepath='./drive/MyDrive/SSL_Models/VICREG_checkpoint.pth',
