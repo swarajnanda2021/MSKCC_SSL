@@ -731,6 +731,10 @@ class DiNO(nn.Module):
 
 # Define the BYOL method
 
+
+
+# Define the BYOL method
+
 class BYOL(nn.Module):
 
     def __init__(self,
@@ -779,12 +783,12 @@ class BYOL(nn.Module):
         self.device     = device
         self.epochs     = epochs
         self.batch_size = batch_size
-        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
-        self.scheduler  = Scheduler.CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-5, final_lr=1e-3, total_epochs=epochs)
         self.savepath   = savepath
         self.alpha      = alpha  # momentum blending constant
         self.final_momentum = 1
         self.base_momentum  = alpha
+        self.losses = []  # Track losses
+
 
     def _init_weight_norm_layer(self, in_features, out_features):
         layer = nn.utils.weight_norm(nn.Linear(in_features, out_features, bias=False))
@@ -838,9 +842,8 @@ class BYOL(nn.Module):
         return loss
 
 
-    def train(self,dataloader):
+    def train(self,dataloader,scheduler,optimizer):
 
-        self.losses = []
 
         for epoch in range(self.epochs):
             train_loader = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.epochs}")
@@ -857,16 +860,12 @@ class BYOL(nn.Module):
                 # Append the loss
                 self.losses.append(loss.item())
                 # Perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
-
-
-                # Get current learning rate
-                current_lr = self.optimizer.param_groups[0]['lr']
+                optimizer.step()
 
                 # Update tqdm progress bar with the current loss and learning rate
-                train_loader.set_postfix(loss=loss.item(), lr=current_lr)
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
 
             # Update momentum and teacher
@@ -877,9 +876,9 @@ class BYOL(nn.Module):
             if epoch % 10 == 0:
                 file_path = self.savepath
                 # Save the current state of the model and optimizer
-                self.save_checkpoint(file_path)
+                self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
-            self.scheduler.step(epoch)
+            scheduler.step(epoch)
 
         return self.losses
 
@@ -887,24 +886,26 @@ class BYOL(nn.Module):
     def get_encoder(self):
         return self.teacher, self.student
 
-    def save_checkpoint(self, file_path):
-
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
         checkpoint = {
-        'model_state_dict': self.state_dict(),
-        'optimizer_state_dict': self.optimizer.state_dict()
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
         }
-        torch.save(checkpoint, file_path)
-        print(f"Checkpoint saved to {file_path}")
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def load_checkpoint(self, file_path, device):
-
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
         checkpoint = torch.load(file_path, map_location=device)
         self.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
         print(f"Checkpoint loaded from {file_path}")
-
-
-
 
 
 
