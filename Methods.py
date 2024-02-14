@@ -907,6 +907,7 @@ class BYOL(nn.Module):
 
 
 
+
 class VICReg(nn.Module):
     def __init__(self,
                  encoder,
@@ -927,21 +928,11 @@ class VICReg(nn.Module):
         self.device = device
         self.epochs = epochs
         self.batch_size = batch_size
-        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
-        #self.scheduler  = Scheduler.CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-3, final_lr=1e-5, total_epochs=epochs)
-        self.scheduler = Scheduler.CosineAnnealingWarmupRestarts(
-                        self.optimizer,
-                        first_cycle_steps=self.epochs - 10,  # Total epochs minus warm-up epochs
-                        cycle_mult=1.0,  # Keep cycle length constant after each restart
-                        max_lr=1e-3,  # Maximum LR after warm-up
-                        min_lr=1e-5,  # Minimum LR
-                        warmup_steps=10,  # Warm-up for 10 epochs
-                        gamma=1.0  # Keep max_lr constant after each cycle
-                    )
         self.savepath = savepath
         self.alpha    = 25
         self.beta     = 25
         self.gamma    = 1
+        self.losses = []
 
     def _create_mlp(self, input_size, hidden_size_ratio, output_size, num_layers=3):
         hidden_size = int(input_size * hidden_size_ratio)
@@ -982,8 +973,8 @@ class VICReg(nn.Module):
         assert n == m
         return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
-    def train(self, dataloader):
-        self.losses = []
+    def train(self, dataloader, scheduler, optimizer):
+        
 
         for epoch in range(self.epochs):
             train_loader = tqdm(dataloader, desc=f"Epoch {epoch+1}/{self.epochs}")
@@ -997,43 +988,48 @@ class VICReg(nn.Module):
                 
                 loss = self.vicreg_loss(x1, x2)
 
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
                 self.losses.append(loss.item())
-                train_loader.set_postfix(loss=loss.item(), lr=self.optimizer.param_groups[0]['lr'])
+                
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
             
             # Save model checkpoint at regular intervals
             if epoch % 10 == 0:
                 file_path = self.savepath
                 # Save the current state of the model and optimizer
-                self.save_checkpoint(file_path)
+                self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
-            self.scheduler.step(epoch)
+            scheduler.step(epoch)
 
         return self.losses
 
     def get_encoder(self):
-        return self.teacher, self.student
+        return self.encoder
 
-    def save_checkpoint(self, file_path):
-
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
         checkpoint = {
-        'model_state_dict': self.state_dict(),
-        'optimizer_state_dict': self.optimizer.state_dict()
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
         }
-        torch.save(checkpoint, file_path)
-        print(f"Checkpoint saved to {file_path}")
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def load_checkpoint(self, file_path, device):
-
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
         checkpoint = torch.load(file_path, map_location=device)
         self.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
         print(f"Checkpoint loaded from {file_path}")
-
 
 
 
