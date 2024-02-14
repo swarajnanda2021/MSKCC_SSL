@@ -1036,6 +1036,7 @@ class VICReg(nn.Module):
 
 
 
+
 class BarlowTwins(nn.Module): # the similarity loss of simCLR
 
     def __init__(self, encoder, device,batch_size,epochs,savepath, feature_size, projection_hidden_size_ratio, gamma):
@@ -1046,16 +1047,6 @@ class BarlowTwins(nn.Module): # the similarity loss of simCLR
         self.epochs = epochs
         self.device = device
         self.savepath  = savepath
-        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05)
-        self.scheduler = Scheduler.CosineAnnealingWarmupRestarts(
-                        self.optimizer,
-                        first_cycle_steps=self.epochs - 10,  # Total epochs minus warm-up epochs
-                        cycle_mult=1.0,  # Keep cycle length constant after each restart
-                        max_lr=1e-3,  # Maximum LR after warm-up
-                        min_lr=1e-5,  # Minimum LR
-                        warmup_steps=10,  # Warm-up for 10 epochs
-                        gamma=1.0  # Keep max_lr constant after each cycle
-                    )
         # Barlow Twin specific implementation
         # projector
         self.projector =  nn.Sequential(
@@ -1074,6 +1065,8 @@ class BarlowTwins(nn.Module): # the similarity loss of simCLR
 
         # The loss calculated from gamma
         self.gamma  = gamma
+        self.losses = []  # Track losses
+
 
     def BarlowTwins_loss(self, imgs):
         # Unpack the images and encode them using the same encoder
@@ -1096,31 +1089,30 @@ class BarlowTwins(nn.Module): # the similarity loss of simCLR
     def get_encoder(self):
         return self.model
 
-    def save_checkpoint(self, file_path):
-        """
-        Save the model checkpoint.
-        """
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
         checkpoint = {
             'model_state_dict': self.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict()
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
         }
-        torch.save(checkpoint, file_path)
-        print(f"Checkpoint saved to {file_path}")
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def load_checkpoint(self, file_path, device):
-        """
-        Load the model from the checkpoint.
-        """
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
         checkpoint = torch.load(file_path, map_location=device)
         self.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
         print(f"Checkpoint loaded from {file_path}")
 
 
-
-    def train(self, dataloader):
-        self.losses = []  # Track losses
-
+    def train(self, dataloader, scheduler, optimizer):
+        
         # Start training
         for epoch in range(self.epochs):
             # Initialize tqdm progress bar
@@ -1137,23 +1129,21 @@ class BarlowTwins(nn.Module): # the similarity loss of simCLR
                 self.losses.append(loss.item())
 
                 # Perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
-                # Update tqdm progress bar with the current loss
-                train_loader.set_postfix(loss=loss.item())
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
             if (int(epoch)%10 == 0):
               file_path = self.savepath
 
               # Save the current state of the model and optimizer
-              self.save_checkpoint(file_path)
+              self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
 
-            self.scheduler.step(epoch)
+            scheduler.step(epoch)
 
 
         return self.losses
-
-
