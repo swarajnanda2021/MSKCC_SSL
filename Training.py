@@ -247,6 +247,30 @@ vicreg_model = VICReg(encoder=encoder,
                       output_projector_size=FEATURE_SIZE*2*2)
 
 
+########################################################
+# Use if you have updated the method to pass optimizer and scheduler externally
+
+model = vicreg_model # barlow_twins # BYOL_model
+optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05) 
+scheduler = Scheduler.CosineAnnealingWarmupRestarts(
+                        optimizer,
+                        first_cycle_steps=EPOCHS - 10,  # Total epochs minus warm-up epochs
+                        cycle_mult=1.0,  # Keep cycle length constant after each restart
+                        max_lr=1e-3,  # Maximum LR after warm-up
+                        min_lr=1e-5,  # Minimum LR
+                        warmup_steps=10,  # Warm-up for 10 epochs
+                        gamma=1.0  # Keep max_lr constant after each cycle
+                    )
+
+
+########################################################
+
+
+
+
+
+
+
 if __name__ == "__main__":
       
       simclr_loss_iter               =   simclr_model.train(train_loader)
@@ -254,6 +278,7 @@ if __name__ == "__main__":
       #vicreg_loss_iter              =   vicreg_model.train(train_loader)  
       #nnclr_loss_iter               =   nnclr_model.train(train_loader)
       #mae_loss_iter                 =   mae_model.train(train_loader)  
-      #byol_loss_iter                =   BYOL_model.train(train_loader)
-      #barlowtwins_loss_iter         =   barlow_twins.train(train_loader)
+      #byol_loss_iter                =   model.train(dataloader = train_loader,scheduler = scheduler,optimizer = optimizer)
+      #barlowtwins_loss_iter         =   model.train(dataloader = train_loader,scheduler = scheduler,optimizer = optimizer)
+      #vicreg_loss_iter              =   model.train(dataloader = train_loader,scheduler = scheduler,optimizer = optimizer)
 
