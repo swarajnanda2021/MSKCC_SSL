@@ -351,8 +351,8 @@ class TransformerBlock(nn.Module):
         self.mlp        = MultiLayerPerceptron(embedding_dim, hidden_features, embedding_dim, projection_dropout)
 
     def forward(self,x):
-        x = x + self.attention(x)
-        x = x + self.mlp(x)
+        x = x + self.attention(self.norm1(x))
+        x = x + self.mlp(self.norm2(x))
         return x
 
 class ViT_encoder(nn.Module):
