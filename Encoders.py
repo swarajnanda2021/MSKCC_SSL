@@ -323,6 +323,89 @@ class Attention(nn.Module):
         return Projection_operation 
 
 
+class RelativeAttention(nn.Module): # Based on Vasvani's 2018 paper https://arxiv.org/pdf/1803.02155.pdf and implementations from Swin transformer official codebase
+    def __init__(self, inp, oup, image_size, patch_size, heads=8, dim_head=32, projection_dropout=0., attn_dropout = 0.):
+        super().__init__()
+        
+
+        self.embed_dim          = inp
+        self.n_heads            = heads
+        self.head_dim           = self.embed_dim // self.n_heads
+        self.scale              = self.head_dim ** -0.5 # From vaswani paper
+        self.qkv                = nn.Linear(self.embed_dim, 3* self.embed_dim) # convert input to query, key and value
+        self.project            = nn.Linear(self.embed_dim,oup)
+        self.projection_dropout = nn.Dropout(projection_dropout)
+        self.attention_dropout  = nn.Dropout(attn_dropout)
+
+
+        # parameter table of relative position bias 
+        # (comes from the window attention module in swin transformers)
+        self.ih, self.iw   = image_size 
+        self.ih = int(self.ih/patch_size)
+        self.iw = int(self.iw/patch_size)
+        self.relative_position_bias_table = nn.Parameter(
+            torch.zeros((2 * self.ih - 1) * (2 * self.iw - 1), heads)) 
+
+        coords = torch.meshgrid((torch.arange(self.ih), torch.arange(self.iw)))
+        coords = torch.flatten(torch.stack(coords), 1)
+        relative_coords = coords[:, :, None] - coords[:, None, :]
+        relative_coords = relative_coords.permute(1,2,0).contiguous()
+
+        relative_coords[:,:,0] += self.ih - 1
+        relative_coords[:,:,1] += self.iw - 1 # these lines make relative coordinates position positive, as prior subtraction makes them negative
+        relative_coords[:,:,0] *= 2 * self.iw - 1 # this scales the distance of the pixel (patch) positions in a new row of the image so that it is more than the last pixel (patch) in the previous row
+        relative_index = relative_coords.sum(-1) # will be num patches^2 X num patches^2
+        self.register_buffer("relative_index", relative_index) 
+
+        
+        
+    def forward(self, x):
+
+        batches, tokens, embed_dim = x.shape # tokens = total patches plus 1 class token
+
+        QueryKeyValue = self.qkv(x) # it is like a neural form of repmat function.
+        QueryKeyValue = QueryKeyValue.reshape(batches, tokens, 3, self.n_heads,self.head_dim)
+        # Above has following dim: batches, tokens, [Query  Key Value], num_heads, head_dim
+        QueryKeyValue = QueryKeyValue.permute(      2,      0, 3,             1,           4)
+        # Above has following dim: QKV, batches, num_heads, tokens, head_dim
+        Query, Key, Value    = QueryKeyValue[0], QueryKeyValue[1], QueryKeyValue[2]
+        # Above has following dim: batches, num_heads, tokens, head_dim
+        Attn_dot_product     = (Query @ Key.transpose(-2, -1)) * self.scale
+        
+        
+        #Estimate the relative position bias and add it to the attention operation
+        relative_position_bias = self.relative_position_bias_table[self.relative_index.view(-1)].view(
+            self.ih * self.iw,  self.ih * self.iw, -1
+        )
+        relative_position_bias = relative_position_bias.permute(2,0,1).contiguous()
+        
+        print(relative_position_bias.unsqueeze(0).shape, Attn_dot_product.shape)
+        
+        Attn_dot_product +=  relative_position_bias.unsqueeze(0)
+        # Above has following dim: batches, num_heads, tokens, tokens
+        Attention_mechanism  = Attn_dot_product.softmax(dim=-1)
+        Attention_mechanism  = self.attention_dropout(Attention_mechanism)
+        
+        Attention_mechanism  = Attn_dot_product.softmax(dim=-1)
+        # Above has following dim: batches, num_heads, tokens, tokens
+        
+        
+        # Applying the mask (from Values)
+        Masking_mechanism    = (Attention_mechanism @ Value).transpose(1,2)
+        
+        # Above has following dim: batches, tokens, num_heads, head_dimension
+        Masking_mechanism    = Masking_mechanism.flatten(2)
+        # Above has following dim: batches, tokens, (num_heads*head_dimension), or, batches, tokens, embedding_dim
+        Projection_operation = self.project(Masking_mechanism)
+        Projection_operation = self.projection_dropout(Projection_operation)
+
+
+
+        return Projection_operation
+
+
+
+
 class MultiLayerPerceptron(nn.Module):
 
     def __init__(self,in_features,hidden_features,out_features,dropout=0.):
