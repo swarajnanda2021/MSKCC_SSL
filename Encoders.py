@@ -324,7 +324,7 @@ class Attention(nn.Module):
 
 
 class RelativeAttention(nn.Module): # Based on Vasvani's 2018 paper https://arxiv.org/pdf/1803.02155.pdf and implementations from Swin transformer official codebase
-    def __init__(self, inp, oup, image_size, patch_size, heads=8, dim_head=32, projection_dropout=0., attn_dropout = 0.):
+    def __init__(self, inp, oup, image_size, patch_size, heads=8, projection_dropout=0., attn_dropout = 0.):
         super().__init__()
         
 
