@@ -379,7 +379,7 @@ class RelativeAttention(nn.Module): # Based on Vasvani's 2018 paper https://arxi
         )
         relative_position_bias = relative_position_bias.permute(2,0,1).contiguous()
         
-        print(relative_position_bias.unsqueeze(0).shape, Attn_dot_product.shape)
+        
         
         Attn_dot_product +=  relative_position_bias.unsqueeze(0)
         # Above has following dim: batches, num_heads, tokens, tokens
