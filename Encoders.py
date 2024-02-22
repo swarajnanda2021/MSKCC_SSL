@@ -351,6 +351,10 @@ class RelativeAttention(nn.Module): # Based on Vasvani's 2018 paper https://arxi
         relative_coords = coords[:, :, None] - coords[:, None, :]
         relative_coords = relative_coords.permute(1,2,0).contiguous()
 
+        # The following lines implement the skewing of the relative_coords matrix.
+        # This eliminates the need for the query and relative coordinate dor product
+        # thus reducing the computational cost of the process. From music
+        # transformers paper: https://arxiv.org/pdf/1809.04281.pdf (same Vaswani guyl, dude's a legend)
         relative_coords[:,:,0] += self.ih - 1
         relative_coords[:,:,1] += self.iw - 1 # these lines make relative coordinates position positive, as prior subtraction makes them negative
         relative_coords[:,:,0] *= 2 * self.iw - 1 # this scales the distance of the pixel (patch) positions in a new row of the image so that it is more than the last pixel (patch) in the previous row
