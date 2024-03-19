@@ -283,7 +283,7 @@ I will describe here only the approach for instantiating a resnet object and a v
 ### Training on your data
 Once the prior instantiations are completed, the approach for training is relatively straightforward. Most methods have a saving of checkpoints every 10 epochs. This is not passed as a variable so you may have to go into the Method object and tweak it yourself.
 
-```
+```ruby
 import torch
 import Scheduler
 dataloader = .... # Take something from prior sections, but be specific to the approach. Besides the DiNO model, all else uses a contrastive style data augmentation object.
