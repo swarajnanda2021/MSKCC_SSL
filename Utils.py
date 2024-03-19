@@ -146,6 +146,17 @@ class MultiCropWrapper(nn.Module):
 
       return self.projector(output)
 
+############
+# Prenorm module, makes it cheaper
+
+class PreNorm(nn.Module):
+    def __init__(self, norm, model, dimension):
+        super().__init__()
+        self.norm = norm(dimension)
+        self.model = model
+    def forward(self,x):
+        return self.model(self.norm(x))
+
 
 #############
 
