@@ -24,6 +24,7 @@ class simCLR(nn.Module): # the similarity loss of simCLR
         self.epochs = epochs
         self.device = device
         self.savepath  = savepath
+        self.losses = []  # Track losses
 
     def SimCLR_loss(self, features):
         n_views = 2
@@ -82,7 +83,7 @@ class simCLR(nn.Module): # the similarity loss of simCLR
 
 
     def train(self, dataloader, scheduler, optimizer):
-        self.losses = []  # Track losses
+        
 
         # Start training
         for epoch in range(self.epochs):
@@ -181,10 +182,7 @@ class NNCLR(nn.Module):
         self.temperature        = temperature
         self.reduction          = reduction
         self.savepath           = savepath
-        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-        #scheduler     = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-        self.scheduler = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
-
+        self.losses = []  # Track losses
                      
     def compute_loss(self,predicted,nn): # supply feature set (passed through projector and predictor) and NNs
         pred_size, _    = predicted.shape
@@ -239,29 +237,30 @@ class NNCLR(nn.Module):
     def get_encoder(self):
         return self.encoder
 
-    def save_checkpoint(self, file_path):
-        """
-        Save the model checkpoint.
-        """
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
         checkpoint = {
             'model_state_dict': self.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict()
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
         }
-        torch.save(checkpoint, file_path)
-        print(f"Checkpoint saved to {file_path}")
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def load_checkpoint(self, file_path, device):
-        """
-        Load the model from the checkpoint.
-        """
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
         checkpoint = torch.load(file_path, map_location=device)
         self.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
         print(f"Checkpoint loaded from {file_path}")
 
 
-    def train(self, dataloader):
-        self.losses = []  # Track losses
+    def train(self, dataloader, scheduler, optimizer):
+        
 
         # Start training
         for epoch in range(self.epochs):
@@ -280,12 +279,12 @@ class NNCLR(nn.Module):
                 self.losses.append(loss.item())
 
                 # Perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
-                # Update tqdm progress bar with the current loss
-                train_loader.set_postfix(loss=loss.item())
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
             # Save model checkpoint at regular intervals
             if epoch % 10 == 0:
@@ -293,7 +292,7 @@ class NNCLR(nn.Module):
                 # Save the current state of the model and optimizer
                 self.save_checkpoint(file_path)
 
-            self.scheduler.step(epoch)
+            scheduler.step(epoch)
 
         return self.losses
 
@@ -377,15 +376,9 @@ class MAE(nn.Module):
         self.dec_norm               = nn.LayerNorm(decoder_embedding_dim, eps = 1e-6)
         self.dec_head               = nn.Linear(decoder_embedding_dim, patch_size**2 * in_channels, bias=True)
 
-        # Optimization related stuff:
-
-        #self.optimizer          = torch.optim.SGD(self.parameters(), lr=0.06, momentum=0.9, weight_decay=5e-4)
-        #
-        self.optimizer          = torch.optim.AdamW(self.parameters(), lr=(1.5e-4) * batch_size / 256, betas=(0.9, 0.95), weight_decay=0.05)
-        self.scheduler          = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=20, eta_min=1e-8)#, last_epoch=-1)
-
         self.epochs             = epochs
         self.device             = device
+        self.losses             = []  # Track losses
 
         # Meta has a normalized pixel loss implemented, but we will avoid it for the time being
 
@@ -497,10 +490,29 @@ class MAE(nn.Module):
         loss = (loss * mask).sum() / mask_sum
         return loss
 
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
+        checkpoint = {
+            'model_state_dict': self.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
+        }
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def train(self, dataloader):
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
+        checkpoint = torch.load(file_path, map_location=device)
+        self.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
+        print(f"Checkpoint loaded from {file_path}")
 
-        self.losses = []
+    def train(self, dataloader, scheduler, optimizer):
+        
         # start training
         for epoch in range(self.epochs):
 
@@ -516,17 +528,23 @@ class MAE(nn.Module):
                 loss = self.MAE_loss(images, pred, mask)
 
                 # perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
                 # Append the loss
                 self.losses.append(loss.item())
 
-                # Update tqdm postfix to show the current batch loss
-                train_loader.set_postfix(batch_loss=loss.item())
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
-            self.scheduler.step()
+            # Save model checkpoint at regular intervals
+            if epoch % 10 == 0:
+                file_path = self.savepath
+                # Save the current state of the model and optimizer
+                self.save_checkpoint(file_path)
+
+            scheduler.step()
 
         return self.losses
 
@@ -571,8 +589,6 @@ class DiNO(nn.Module):
         self.device     = device
         self.batch_size = batch_size
         self.epochs     = epochs
-        self.optimizer  = torch.optim.AdamW(self.parameters(), lr=1e-3, betas=(0.9, 0.95), weight_decay=0.05)
-        self.scheduler  = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-6, final_lr=1e-3, total_epochs=self.epochs)
         # DiNO specific parameters
         self.base_momentum  = alpha
         self.final_momentum = 1
@@ -584,8 +600,8 @@ class DiNO(nn.Module):
         self.center_momentum = 0.999 # change this
         self.register_buffer('center', torch.zeros(1, feature_size, device=device))
         self.ncrops     = ncrops
-
         self.criterion  = torch.nn.CrossEntropyLoss().to(device)
+        self.losses     = []
 
     @torch.no_grad()
     def update_momentum(self, current_epoch):
@@ -663,13 +679,12 @@ class DiNO(nn.Module):
         return total_loss # which is actually the average loss
 
 
-    def train(self, dataloader):
-        self.losses = [] # Track losses
+    def train(self, dataloader, scheduler, optimizer):
 
         # Switch off gradient requirement for teacher (I don't know if these steps are redundant)
         for p in self.teacher.parameters():
             p.requires_grad = False
-        # Switch off gradient requirement for teacher
+        # Switch on gradient requirement for student (ad hoc. but seems to work)
         for p in self.student.parameters():
             p.requires_grad = True
 
@@ -698,17 +713,17 @@ class DiNO(nn.Module):
                 self.losses.append(loss.item())
 
                 # Perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
                 # update teacher
                 self.update_teacher()
 
-                # Update tqdm progress bar with the current loss
-                train_loader.set_postfix(loss=loss.item())
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
-            self.scheduler.step(epoch) # update the scheduler learning rate
+            scheduler.step(epoch) # update the scheduler learning rate
             # Save model checkpoint at regular intervals
             if epoch % 10 == 0:
                 file_path = self.savepath
