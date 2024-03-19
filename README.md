@@ -25,11 +25,11 @@ There are other elements in the repo, such as [DimensionReduction](https://githu
 
 ## Usage
 
-### Instantiation of Encoders
+### Instantiation of Encoder Object
 
-### Instantiation of Data Augmentation pipeline
+### Instantiation of Data Augmentation Object
 
-I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
+- **Contrastive** : I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
 ```
 import torch, torchvision
 from torchvision.datasets import CIFAR10
@@ -60,7 +60,32 @@ trainset        = CIFAR10(root='./data',train=True,download=True, transform=cont
 dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 ```
 
-### Training a model
+- **DiNO**: Here, we will take the case of 2 global crops of size 224x224 pixels (basically set as a constant in the DataAug method which you can change manually if you would like), and then 6 local crops of size 96x96 pixels. The scale of these local and global crops are a factor of the image dimensions, and the values specified in the tuple is (low end range, high end range) in the instantiation of the DinoTransforms object.
+
+```
+import torch, torchvision
+from torchvision.datasets import CIFAR10
+from DataAug import DinoTransforms
+from torch.utils.data import DataLoader
+
+CROPS          = 6
+BATCH_SIZE     = 256
+trainset_dino  = torchvision.datasets.ImageFolder(                                            # Used this because CIFAR10 is too small for doing this kind of SSL (IMO)
+                    root          =   './drive/MyDrive/SSL_Datasets/imagewoof2-320/train',    # add your image path here
+                    transform     =   DinoTransforms(
+                                  local_size         = 96,
+                                  global_size        = 224,
+                                  local_crop_scale   = (0.05, 0.4),
+                                  global_crop_scale  = (0.4, 1.0),
+                                  n_local_crops      = CROPS,
+                                  )
+                    )
+dataloader = DataLoader(trainset_dino, batch_size=BATCH_SIZE, shuffle=True)
+```
+
+### Instantiation of a Self-Supervised Learning Method Object
+
+### Training on your data
 
 
 
