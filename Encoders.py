@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from Utils import PreNorm
 
 # Encoder 1: ResNet with many modifications (incl. resnext)
 class DownsampleModule(nn.Module):
@@ -175,6 +176,52 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         return out
+
+
+
+class MBConv(nn.Module):
+    def __init__(self, inp, oup, expansion, downsample):
+        super().__init__()
+        self.downsample = downsample
+        stride = 1 if not downsample else 2
+        hidden_dim = int(expansion * inp)
+
+        if self.downsample:
+            self.pool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.proj = nn.Conv2d(inp, oup, kernel_size=1, stride=1, padding=0, bias=False)
+
+        if expansion == 1:
+            self.conv = nn.Sequential(
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=stride, 
+                          padding=1, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.GELU(),
+                nn.Conv2d(hidden_dim, oup, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(oup)
+            )
+        else:
+            self.conv = nn.Sequential(
+                nn.Conv2d(inp, hidden_dim, kernel_size=1, stride=stride, padding=0, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.GELU(),
+                nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, 
+                          padding=1, groups=hidden_dim, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                nn.GELU(),
+                SqueezeAndExcite(hidden_dim, expansion=0.25),
+                nn.Conv2d(hidden_dim, oup, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(oup)
+            )
+
+        self.conv = PreNorm(norm=nn.BatchNorm2d, model=self.conv, dimension=inp)
+
+    def forward(self, x):
+        if self.downsample:
+            return self.proj(self.pool(x)) + self.conv(x)
+        else:
+            return self.proj(x) + self.conv(x)
+
+
 
 class ResNet(nn.Module):
     def __init__(self, block, layers, outputchannels=1000, modification_type={''}):
