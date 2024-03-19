@@ -66,7 +66,9 @@ I will describe here only the approach for instantiating a resnet object and a v
      - layers=[3, 4, 6, 3]
      - block = Bottleneck
   
-- **Vision Transformer** : The following is how you would instantiate the vision transformer. Mind you, the attention mechanism is quite useless in the low data-regime due to a lack of inductive bias in the attention operation. Even when hybrid architectures are considered, such as the [CoATNnet](https://arxiv.org/abs/2106.04803) paper by Google, you'll see in that paper that the more convolutional blending is preferred in the architecture, the better it generalizes to smaller datasets during training and eval.
+- **Vision Transformer** : The following is how you would instantiate the vision transformer. Provided are instantiation of the vanilla ViT base, tiny and small models. There are, of course, others. These are the ViT Huge and ViT Large, but I never pursued them because my sole focus was on developing self-supervised learning methods first. In this implementation, we have used the pre-norming technique, i.e., layer normalization of the weights are performed prior to the projection operations (if that is correct).
+
+  Lastly, the implementation is image size agnostic. This was necessary for the use of the vision transformer in the DiNO method, as the encoder processes both local and global crops. The approach here is based on Meta's implementation in its DiNO github repo, particularly the [VisionTransformer.interpolate_pos_encoding](https://github.com/facebookresearch/dino/blob/7c446df5b9f45747937fb0d72314eb9f7b66930a/vision_transformer.py#L174).
   ```ruby
   def ViT_base():
         model = ViT_encoder(image_size = 32, 
@@ -111,6 +113,9 @@ I will describe here only the approach for instantiating a resnet object and a v
                             projection_dropout=0.1)
         return model
   ```
+  Mind you, the attention mechanism is quite useless in the low data-regime due to a lack of inductive bias in the attention operation. Even when hybrid architectures are considered, such as the [CoATNnet](https://arxiv.org/abs/2106.04803) paper by Google, you'll see in that paper that the more convolutional blending is preferred in the architecture, the better it generalizes to smaller datasets during training and eval.
+
+  Secondly, I have not implemented a stochastic depth in this vision transformer, so the only regularization is the dropout of certain layers (attention and projection heads). You may take inspiration from the ResNet implementation in my code and proceed with it. In this case, I wonder if stochastic depth should be used in tandem with dropout. I believe people forego one for the other, but you may consider something based on your experience with the methods.
 
 ### Instantiation of Data Augmentation Object
 
