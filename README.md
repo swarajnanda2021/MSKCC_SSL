@@ -30,9 +30,13 @@ The current repo contains mostly joint-embedding architectures except for one ge
 
 In the following, I will outline the instantiation of several Self-Supervised Learning methods that have been implemented in the Methods file. I have left out the instantiation of the MAE method, as it is not flexible yet, and written only for the ViT architecture.
 
-- **SimCLR**       :
+Instead of being descriptive about the Self-Supervised Learning methods, I will only highlight the paper relevant to each method. Some relevant comments will be there, but they only pertain to what is probably missing in the implementation, or some key things that may help improve performance for you.
+
+- **[SimCLR](https://arxiv.org/abs/2002.05709)**       : Bigger the batch size, better the contrastive learning as infoNCE loss can be better calculated only when the batch size is large, i.e., there are sufficient number of positive and negative examples for the loss estimation.
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.simCLR(
             encoder         = encoder, 
             device          = device, 
@@ -40,9 +44,11 @@ In the following, I will outline the instantiation of several Self-Supervised Le
             epochs          = EPOCHS,
             savepath        = './checkpoints/test.pth',
         )
-- **NNCLR**        :
+- **[NNCLR](https://arxiv.org/abs/2104.14548)**        : Queue size should be sufficiently large (here the vanilla queue size of 32768 was taken from paper) so that you may estimate nearest neighbors from a big enough population size of samples.
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.NNCLR(
             encoder = encoder,
             feature_size                    = 512, 
@@ -56,9 +62,11 @@ In the following, I will outline the instantiation of several Self-Supervised Le
             device                          = device,
             savepath        = './checkpoints/test.pth',
         )
-- **DiNO**         :
+- **[DiNO](https://arxiv.org/abs/2104.14294)**         : The number of global crops is set to 2, where are the number of local crops is passed as a parameter in the instantiation as a variable _CROPS_.
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.DiNO(
             encoder_embedding_dim = encoder_output_dim,       # based only on the global crop size.
             feature_size          = 128,
@@ -72,9 +80,11 @@ In the following, I will outline the instantiation of several Self-Supervised Le
             savepath              = './checkpoints/test.pth',
         )
   ```
-- **BYOL**         :
+- **[BYOL](https://papers.nips.cc/paper/2020/file/f3ada80d5c4ee70142b17b8192b2958e-Paper.pdf)**         :
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.BYOL(
             encoder     = encoder,
             device      = device,
@@ -87,9 +97,11 @@ In the following, I will outline the instantiation of several Self-Supervised Le
             alpha       = 0.96
         )
   ```
-- **BarlowTwins**  :
+- **[BarlowTwins](https://arxiv.org/abs/2103.03230)**  :
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.BarlowTwins(
             encoder=encoder,
             device=device,
@@ -101,9 +113,11 @@ In the following, I will outline the instantiation of several Self-Supervised Le
             gamma=0.0051
         )
   ```
-- **VicREG**       :
+- **[VICReg](https://arxiv.org/abs/2105.04906)**       : Here, the learning rate scheduler per the paper is different from vanilla approaches where the learning rate is the same for all layers. I would recommend looking into it and accordingly implementing your own scheduler to stick to the vanilla VICReg approach.
   ```ruby
   import Methods
+  import torch
+  device    = torch.device("cuda") # Do not try the 'mps' device as most pytorch functionalities aren't in it.
   model     = Methods.VICReg(
             encoder=encoder,
             device=device,
@@ -267,7 +281,26 @@ I will describe here only the approach for instantiating a resnet object and a v
    ```
 
 ### Training on your data
+Once the prior instantiations are completed, the approach for training is relatively straightforward. Most methods have a saving of checkpoints every 10 epochs. This is not passed as a variable so you may have to go into the Method object and tweak it yourself.
 
+```
+import torch
+import Scheduler
+dataloader = .... # Take something from prior sections, but be specific to the approach. Besides the DiNO model, all else uses a contrastive style data augmentation object.
+SSL_model  = model 
+optimizer  = torch.optim.AdamW(model.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05) 
+scheduler  = Scheduler.CosineAnnealingWarmupRestarts(
+                        optimizer,
+                        first_cycle_steps=EPOCHS - 10,  # Total epochs minus warm-up epochs
+                        cycle_mult=1.0,  # Keep cycle length constant after each restart
+                        max_lr=1e-3,  # Maximum LR after warm-up
+                        min_lr=1e-5,  # Minimum LR
+                        warmup_steps=10,  # Warm-up for 10 epochs
+                        gamma=1.0  # Keep max_lr constant after each cycle
+                    )
+
+loss_iter  = model.train(dataloader = dataloader, scheduler = scheduler, optimizer = optimizer)
+```
 
 
 
