@@ -29,7 +29,7 @@ There are other elements in the repo, such as [DimensionReduction](https://githu
 I will describe here only the approach for instantiating a resnet object and a vision transformer object. The vision transformer is fairly vanilla in implementation but there are several modifications acceptable by the resnet instantiation approach. 
 
 - **ResNet** : Here, I have instantiated the ResNet method, which takes a typical resnet block. The _BasicBlock_ has no bottleneck structure, whereas the _Bottleneck_ block has.
-   ```
+   ```ruby
    import Encoders
    from Encoders import ResNet, BasicBlock, Bottleneck
    
@@ -60,7 +60,7 @@ I will describe here only the approach for instantiating a resnet object and a v
 ### Instantiation of Data Augmentation Object
 
 - **Contrastive** : I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
-   ```
+   ```ruby
    import torch, torchvision
    from torchvision.datasets import CIFAR10
    from DataAug import ContrastiveTransformations
@@ -92,7 +92,7 @@ I will describe here only the approach for instantiating a resnet object and a v
 
 - **DiNO**: Here, we will take the case of 2 global crops of size 224x224 pixels (basically set as a constant in the DataAug method which you can change manually if you would like), and then 6 local crops of size 96x96 pixels. The scale of these local and global crops are a factor of the image dimensions, and the values specified in the tuple is (low end range, high end range) in the instantiation of the DinoTransforms object.
 
-   ```
+   ```ruby
    import torch, torchvision
    from torchvision.datasets import CIFAR10
    from DataAug import DinoTransforms
