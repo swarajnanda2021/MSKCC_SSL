@@ -21,13 +21,44 @@ As preparation for my upcoming postdoctoral venture at MSKCC, or the Memorial Sl
    - **E.1.** Contrastive learning based data augmentation: Outputs a set of 2 (or n) views of transformed input image batch using classical techniques
    - **E.2.** DiNO data augmentation technique. Here, there is a local and a global crop needed for the teacher-student learning approach found in DiNO. Classical augmentation is applied to all crops.
  
-There are other elements in the repo, such as [DimensionReduction](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/DimensionReduction.py), which basically is my implementation of the UMAP method, from scratch, but it is slow. I recommend using a faster library. Other elements also include the training script [Training](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Training.py), but that only serves as a means to understand how to combine these modules to your data. There is also a [jupyter notebook](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Squeeze_and_attend_mamba.ipynb) which is basically just a little test I was doing on an architecture I call the 'Squeeze and Attend' method combined with a [Mamba](https://arxiv.org/abs/2312.00752) block that I wrote from scratch. Won't go into details, it isn't very useful right now. The Mamba block is slow as it uses the recurrent version of the selective scan, so it won't scale either. I use a standard convolution block prior to the state-space model block in the Mamba block, but that should be replaced with a CUDA optimized causal-conv1d method ([example](https://github.com/Dao-AILab/causal-conv1d)).
+There are other elements in the repo, such as [DimensionReduction](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/DimensionReduction.py), which basically is my implementation of the [UMAP](https://arxiv.org/abs/1802.03426) method, from scratch, but it is slow. I recommend using a faster library. Other elements also include the training script [Training](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Training.py), but that only serves as a means to understand how to combine these modules to your data. There is also a [jupyter notebook](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Squeeze_and_attend_mamba.ipynb) which is basically just a little test I was doing on an architecture I call the 'Squeeze and Attend' method combined with a [Mamba](https://arxiv.org/abs/2312.00752) block that I wrote from scratch. Won't go into details, it isn't very useful right now. The Mamba block is slow as it uses the recurrent version of the selective scan, so it won't scale either. I use a standard convolution block prior to the state-space model block in the Mamba block, but that should be replaced with a CUDA optimized causal-conv1d method ([example](https://github.com/Dao-AILab/causal-conv1d)).
 
 ## Usage
 
 ### Instantiation of Encoders
 
 ### Instantiation of Data Augmentation pipeline
+
+I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
+'''
+import torch, torchvision
+from torchvision.datasets import CIFAR10
+from DataAug import ContrastiveTransformations
+from torch.utils.data import DataLoader
+
+custom_transforms = ContrastiveTransformations(
+            size=32,
+            nviews=2,
+            horizontal_flip=True,
+            resized_crop=True,
+            color_jitter=True,
+            random_grayscale=True,
+            brightness=0.5,
+            contrast=0.5,
+            saturation=0.5,
+            hue=0.1,
+            color_jitter_p=0.8,
+            grayscale_p=0.2,
+            to_tensor=True,
+            normalize=True,
+            mean=(0.5,),
+            std=(0.5,)
+        )
+
+BATCH_SIZE      = 256
+trainset        = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
+dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
+'''
 
 ### Training a model
 
