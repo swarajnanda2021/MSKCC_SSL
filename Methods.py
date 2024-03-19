@@ -12,6 +12,8 @@ import Scheduler
 # Method 1: SimCLR
 
 
+
+
 class simCLR(nn.Module): # the similarity loss of simCLR
 
     def __init__(self, encoder, device,batch_size,epochs,savepath):
@@ -22,10 +24,6 @@ class simCLR(nn.Module): # the similarity loss of simCLR
         self.epochs = epochs
         self.device = device
         self.savepath  = savepath
-        self.optimizer = torch.optim.AdamW(self.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.05)
-        self.scheduler = CustomScheduler(self.optimizer, warmup_epochs=10, initial_lr=1e-4, final_lr=1e-3, total_epochs=epochs)
-
-
 
     def SimCLR_loss(self, features):
         n_views = 2
@@ -60,29 +58,30 @@ class simCLR(nn.Module): # the similarity loss of simCLR
     def get_encoder(self):
         return self.model
 
-    def save_checkpoint(self, file_path):
-        """
-        Save the model checkpoint.
-        """
+    def save_checkpoint(self, file_path, epoch, optimizer, scheduler):
         checkpoint = {
             'model_state_dict': self.state_dict(),
-            'optimizer_state_dict': self.optimizer.state_dict()
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),  # Save scheduler state
+            'losses': self.losses,  # Save losses
+            'epoch': epoch
         }
-        torch.save(checkpoint, file_path)
-        print(f"Checkpoint saved to {file_path}")
+        torch.save(checkpoint, f"{file_path}_epoch_{epoch}.pth")
+        print(f"Checkpoint saved to {file_path}_epoch_{epoch}.pth")
 
-    def load_checkpoint(self, file_path, device):
-        """
-        Load the model from the checkpoint.
-        """
+    def load_checkpoint(self, file_path, device, optimizer, scheduler):
         checkpoint = torch.load(file_path, map_location=device)
         self.load_state_dict(checkpoint['model_state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:  # Check if the checkpoint includes a scheduler state
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        if 'losses' in checkpoint:  # Load losses if available
+            self.losses = checkpoint['losses']
         print(f"Checkpoint loaded from {file_path}")
 
 
 
-    def train(self, dataloader):
+    def train(self, dataloader, scheduler, optimizer):
         self.losses = []  # Track losses
 
         # Start training
@@ -104,27 +103,24 @@ class simCLR(nn.Module): # the similarity loss of simCLR
                 self.losses.append(loss.item())
 
                 # Perform optimization
-                self.optimizer.zero_grad()
+                optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                optimizer.step()
 
-                # Update tqdm progress bar with the current loss
-                train_loader.set_postfix(loss=loss.item())
+                # Update tqdm progress bar with the current loss and learning rate
+                train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
             if (int(epoch)%10 == 0):
-              #file_path = '/content/drive/MyDrive/SimCLR_UMAP/simclr_checkpoint.pth'
               file_path = self.savepath
 
               # Save the current state of the model and optimizer
               self.save_checkpoint(file_path)
 
 
-            self.scheduler.step(epoch)
+            scheduler.step(epoch)
 
 
         return self.losses
-
-
 
 # Method 2: NNCLR
 
