@@ -1,5 +1,5 @@
 
-# Self-supervised learning techniques of Image Encoders for computer vision
+# Self-supervised learning library for computer vision
 A suite self-supervised learning techniques and image encoders are provided in this repo, written in PyTorch with ample help from other repos (cited in code), papers, and GPT4.
 
 
