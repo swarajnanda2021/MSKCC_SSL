@@ -24,6 +24,99 @@ There are other elements in the repo, such as [DimensionReduction](https://githu
 
 ## Usage
 
+### Instantiation of a Self-Supervised Learning Method Object
+
+The current repo contains mostly joint-embedding architectures except for one generative method, the Masked Auto-Encoder approach. Each method has been written as a torch.nn.Module PyTorch object, and in order to run, requires a scheduler, dataloader, and optimizer, all of which will be covered in the training subsection at the end of this readme. Most SSL libraries have a separate loss function sent over to the Self-Supervised Learning method, however in this repo, we have the loss function as a feature built within the method. This is perhaps restrictive to you, the user, who would like to experiment with different training loss calculations methods. However, this way we preserve the intent of the authors.
+
+In the following, I will outline the instantiation of several Self-Supervised Learning methods that have been implemented in the Methods file. I have left out the instantiation of the MAE method, as it is not flexible yet, and written only for the ViT architecture.
+
+- **SimCLR**       :
+  ```ruby
+  import Methods
+  model     = Methods.simCLR(
+            encoder         = encoder, 
+            device          = device, 
+            batch_size      = BATCH_SIZE, 
+            epochs          = EPOCHS,
+            savepath        = './checkpoints/test.pth',
+        )
+- **NNCLR**        :
+  ```ruby
+  import Methods
+  model     = Methods.NNCLR(
+            encoder = encoder,
+            feature_size                    = 512, 
+            queue_size                      = 32768,
+            projection_hidden_size_ratio    = 4,
+            prediction_hidden_size_ratio    = 4, 
+            temperature                     = 0.1, 
+            reduction                       = 'mean',
+            batch_size                      = BATCH_SIZE, 
+            epochs                          = EPOCHS,
+            device                          = device,
+            savepath        = './checkpoints/test.pth',
+        )
+- **DiNO**         :
+  ```ruby
+  import Methods
+  model     = Methods.DiNO(
+            encoder_embedding_dim = encoder_output_dim,       # based only on the global crop size.
+            feature_size          = 128,
+            encoder               = encoder,
+            device                = device,
+            batch_size            = BATCH_SIZE,               # Adjust as needed
+            epochs                = EPOCHS,                   # Adjust as needed
+            temperature_teacher   = 0.04,                     # Example value, adjust as needed
+            temperature_student   = 0.07,                     # Example value, adjust as needed
+            ncrops                = CROPS,
+            savepath              = './checkpoints/test.pth',
+        )
+  ```
+- **BYOL**         :
+  ```ruby
+  import Methods
+  model     = Methods.BYOL(
+            encoder     = encoder,
+            device      = device,
+            savepath   = './drive/MyDrive/SSL_Models/BYOL_model.pth',
+            batch_size  = BATCH_SIZE,
+            epochs      = 50,
+            feature_size = FEATURE_SIZE,
+            projection_hidden_size_ratio = 2,
+            prediction_hidden_size_ratio = 2,
+            alpha       = 0.96
+        )
+  ```
+- **BarlowTwins**  :
+  ```ruby
+  import Methods
+  model     = Methods.BarlowTwins(
+            encoder=encoder,
+            device=device,
+            batch_size=BATCH_SIZE,
+            epochs=50,
+            savepath='./drive/MyDrive/SSL_Models/barlowtwins_checkpoint.pth',
+            feature_size=FEATURE_SIZE, # important: a large projector output size often improves performance. It might be worthwhile to have this implemented.
+            projection_hidden_size_ratio=2,
+            gamma=0.0051
+        )
+  ```
+- **VicREG**       :
+  ```ruby
+  import Methods
+  model     = Methods.VICReg(
+            encoder=encoder,
+            device=device,
+            epochs=100,
+            savepath='./drive/MyDrive/SSL_Models/VICREG_checkpoint.pth',
+            batch_size=BATCH_SIZE,
+            feature_size=FEATURE_SIZE,
+            projection_hidden_size_ratio=2,
+            projector_num_layers=2,
+            output_projector_size=FEATURE_SIZE*2*2
+        )
+  ```
+
 ### Instantiation of Encoder Object
 
 I will describe here only the approach for instantiating a resnet object and a vision transformer object. The vision transformer is fairly vanilla in implementation but there are several modifications acceptable by the resnet instantiation approach. 
@@ -172,8 +265,6 @@ I will describe here only the approach for instantiating a resnet object and a v
                        )
    dataloader       = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
    ```
-
-### Instantiation of a Self-Supervised Learning Method Object
 
 ### Training on your data
 
