@@ -1,6 +1,6 @@
 
 # Self-supervised learning library for computer vision
-A suite of self-supervised learning techniques and image encoders are provided in this repo, written in PyTorch with ample help from other repos (cited in code), papers, and GPT4. The methods were tested in google colab, and on the [cifar 10](https://www.cs.toronto.edu/~kriz/cifar.html) and [imagewoof](https://github.com/fastai/imagenette) datasets. No performance parameters are provided as the goal of creating this repo was for personal education purposes only.
+A suite of self-supervised learning techniques and image encoders are provided in this repo, written in PyTorch with ample help from other repos (cited in code), papers, and GPT4. The methods were tested in google colab, and on the [cifar-10](https://www.cs.toronto.edu/~kriz/cifar.html) and [imagewoof](https://github.com/fastai/imagenette) datasets. No performance parameters are provided as the goal of creating this repo was for personal education purposes only.
 
 ## Introduction
 
