@@ -36,7 +36,7 @@ I will describe here only the approach for instantiating a resnet object and a v
    def resnet34(outputchannels=1000, modification_type={''}):
        
        return ResNet(
-           block = Encoders.BasicBlock,
+           block = BasicBlock,
            layers = [3, 5, 7, 5], 
            outputchannels=outputchannels, 
            modification_type={
