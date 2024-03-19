@@ -53,6 +53,17 @@ I will describe here only the approach for instantiating a resnet object and a v
   - Resnet B, C, and D: Based on the [Bag of Tricks](https://arxiv.org/abs/1812.01187) paper that discusses several modifications to both the input stem and the resnet blocks.
   - Squeeze and Excite: Makes representations more expressive by condensing the representation size by 1/4th of original, and then applying a sigmoid activation before re-expanding it. Based on the [Squeeze and Excite](https://arxiv.org/abs/1709.01507) paper.
   - Stochastic Depth  : A regularization technique that drops out blocks based on a survival probability (you'll need to manually tweak this in the Encoders code), so that the model does not overfit. Necessary when data size is small and/or model size is large. Use strong values for smaller datasets or larger models, and relax this criteria when the dataset size is large. It is difficult to tell for your application what large and small mean, think in millions of images for large. Based on the [Stochastic depth](https://arxiv.org/abs/1603.09382) paper.
+ 
+   Furthermore, there are several ResNets that can be instantiated. The ResNet-18 and ResNet-34 models can be instantiated using the Encoders.BasicBlock method, and following a layer depth structure (number of blocks per stage in the ResNet, of which there are 4). Here are some possibilities:
+   - Resnet-18 :
+     - layers=[2, 2, 2, 2]
+     - block = BasicBlock
+   - Resnet-34 :
+     - layers=[3, 4, 6, 3]
+     - block = BasicBlock
+   - Resnet-18 :
+     - layers=[3, 4, 6, 3]
+     - block = Bottleneck
   
 - **Vision Transformer** :
 
@@ -110,7 +121,7 @@ I will describe here only the approach for instantiating a resnet object and a v
                                      n_local_crops      = CROPS,
                                      )
                        )
-   dataloader       = DataLoader(trainset_dino, batch_size=BATCH_SIZE, shuffle=True)
+   dataloader       = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
    ```
 
 ### Instantiation of a Self-Supervised Learning Method Object
