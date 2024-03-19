@@ -66,7 +66,7 @@ I will describe here only the approach for instantiating a resnet object and a v
      - layers=[3, 4, 6, 3]
      - block = Bottleneck
   
-- **Vision Transformer** : The following is how you would instantiate the vision transformer. But mind you, the attention mechanism is quite useless in the low data-regime due to a lack of inductive bias in the attention operation.
+- **Vision Transformer** : The following is how you would instantiate the vision transformer. Mind you, the attention mechanism is quite useless in the low data-regime due to a lack of inductive bias in the attention operation. Even when hybrid architectures are considered, such as the [CoATNnet](https://arxiv.org/abs/2106.04803) paper by Google, you'll see in that paper that the more convolutional blending is preferred in the architecture, the better it generalizes to smaller datasets during training and eval.
   ```ruby
   def ViT_base():
         model = ViT_encoder(image_size = 32, 
@@ -111,7 +111,6 @@ I will describe here only the approach for instantiating a resnet object and a v
                             projection_dropout=0.1)
         return model
   ```
-   
 
 ### Instantiation of Data Augmentation Object
 
