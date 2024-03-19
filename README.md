@@ -30,7 +30,7 @@ There are other elements in the repo, such as [DimensionReduction](https://githu
 ### Instantiation of Data Augmentation pipeline
 
 I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
-'''
+```
 import torch, torchvision
 from torchvision.datasets import CIFAR10
 from DataAug import ContrastiveTransformations
@@ -58,7 +58,7 @@ custom_transforms = ContrastiveTransformations(
 BATCH_SIZE      = 256
 trainset        = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
 dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
-'''
+```
 
 ### Training a model
 
