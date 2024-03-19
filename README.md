@@ -9,7 +9,7 @@ As preparation for my upcoming postdoctoral venture at MSKCC, or the Memorial Sl
 
 ### Contents
 
-- **A.** [Methods](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Methods.py): A selection of self supervised learning techniques presented as torch.nn.Module objects, which are _mostly_ self-contained apart from files in [Utils](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Utils.py). A special focus is placed on joint-embedding architectures (see SSL cookbook: https://arxiv.org/abs/2304.12210), althought the [Masked Autoencoder](https://arxiv.org/abs/2111.06377) is also provided.
+- **A.** [Methods](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Methods.py): A selection of self supervised learning techniques presented as torch.nn.Module objects, which are _mostly_ self-contained apart from files in [Utils](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Utils.py). A special focus is placed on joint-embedding architectures (see SSL cookbook: https://arxiv.org/abs/2304.12210), although the [Masked Autoencoder](https://arxiv.org/abs/2111.06377) is also provided, more of a personal curiosity, but I think the future is joint-embedding based because it is cheaper (you are calculating losses only in the embedding state, not in the dimension of the input that is decoded from the embedding state).
 
 - **B.** [Encoders](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Encoders.py): A selection of image encoder objects, which are not instantiated. You will need to instantiate it using the help provided subsequently in this readme. We have so far in our selection the basic ResNet and Vision Transformer. Instantiation can also be sought from at the bottom end of the code. For ResNet, we have provided all modifications up to ResNeXT, and for transformers, we have provided the Relative Attention module so that you may consider it a building block for hybrid architectures.
 
@@ -20,5 +20,23 @@ As preparation for my upcoming postdoctoral venture at MSKCC, or the Memorial Sl
 - **E.** [DataAug](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/DataAug.py): Data augmentation techniques, classical (linear transformations to the image), are found here. There are two kinds of data augmentation:
    - **E.1.** Contrastive learning based data augmentation: Outputs a set of 2 (or n) views of transformed input image batch using classical techniques
    - **E.2.** DiNO data augmentation technique. Here, there is a local and a global crop needed for the teacher-student learning approach found in DiNO. Classical augmentation is applied to all crops.
+ 
+There are other elements in the repo, such as [DimensionReduction](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/DimensionReduction.py), which basically is my implementation of the UMAP method, from scratch, but it is slow. I recommend using a faster library. Other elements also include the trainins script [Training](https://github.com/swarajnanda2021/MSKCC_SSL/blob/main/Training.py), but that only serves as a means to understand how to combine these modules to your data.
+
+
+### Instantiation of Encoders
+
+### Instantiation of Data Augmentation pipeline
+
+### Training a model
+
+
+
+
+
+
+
+
+
 
 
