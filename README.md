@@ -26,61 +26,92 @@ There are other elements in the repo, such as [DimensionReduction](https://githu
 
 ### Instantiation of Encoder Object
 
+I will describe here only the approach for instantiating a resnet object and a vision transformer object. The vision transformer is fairly vanilla in implementation but there are several modifications acceptable by the resnet instantiation approach. 
+
+- **ResNet** : Here, I have instantiated the ResNet method, which takes a typical resnet block. The _BasicBlock_ has no bottleneck structure, whereas the _Bottleneck_ block has.
+   ```
+   import Encoders
+   from Encoders import ResNet, BasicBlock, Bottleneck
+   
+   def resnet34(outputchannels=1000, modification_type={''}):
+       
+       return ResNet(
+           block = Encoders.BasicBlock,
+           layers = [3, 5, 7, 5], 
+           outputchannels=outputchannels, 
+           modification_type={
+                     'resnetB', 
+                     'resnetC',
+                     'resnetD',
+                     'resnext', 
+                     'squeezeandexcite',
+                     'stochastic_depth',
+                     }
+           )
+   ```
+   Here, the input modification_type refers to modifications that are possible to the general vanilla ResNet from the 2015 [He et al. paper](https://arxiv.org/abs/1512.03385). These are namely:
+  - Resnet B, C, and D: Based on the [Bag of Tricks](https://arxiv.org/abs/1812.01187) paper that discusses several modifications to both the input stem and the resnet blocks.
+  - Squeeze and Excite: Makes representations more expressive by condensing the representation size by 1/4th of original, and then applying a sigmoid activation before re-expanding it. Based on the [Squeeze and Excite](https://arxiv.org/abs/1709.01507) paper.
+  - Stochastic Depth  : A regularization technique that drops out blocks based on a survival probability (you'll need to manually tweak this in the Encoders code), so that the model does not overfit. Necessary when data size is small and/or model size is large. Use strong values for smaller datasets or larger models, and relax this criteria when the dataset size is large. It is difficult to tell for your application what large and small mean, think in millions of images for large. Based on the [Stochastic depth](https://arxiv.org/abs/1603.09382) paper.
+  
+- **Vision Transformer** :
+
+
 ### Instantiation of Data Augmentation Object
 
 - **Contrastive** : I will take here the example of producing two views of a batch of images from the CIFAR dataset in order to instantiate the data augmentation pipeline. The entries are fairly self-explanatory so I do not need to describe them in detail. 
-```
-import torch, torchvision
-from torchvision.datasets import CIFAR10
-from DataAug import ContrastiveTransformations
-from torch.utils.data import DataLoader
-
-custom_transforms = ContrastiveTransformations(
-            size=32,
-            nviews=2,
-            horizontal_flip=True,
-            resized_crop=True,
-            color_jitter=True,
-            random_grayscale=True,
-            brightness=0.5,
-            contrast=0.5,
-            saturation=0.5,
-            hue=0.1,
-            color_jitter_p=0.8,
-            grayscale_p=0.2,
-            to_tensor=True,
-            normalize=True,
-            mean=(0.5,),
-            std=(0.5,)
-        )
-
-BATCH_SIZE      = 256
-trainset        = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
-dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
-```
+   ```
+   import torch, torchvision
+   from torchvision.datasets import CIFAR10
+   from DataAug import ContrastiveTransformations
+   from torch.utils.data import DataLoader
+   
+   custom_transforms = ContrastiveTransformations(
+               size=32,
+               nviews=2,
+               horizontal_flip=True,
+               resized_crop=True,
+               color_jitter=True,
+               random_grayscale=True,
+               brightness=0.5,
+               contrast=0.5,
+               saturation=0.5,
+               hue=0.1,
+               color_jitter_p=0.8,
+               grayscale_p=0.2,
+               to_tensor=True,
+               normalize=True,
+               mean=(0.5,),
+               std=(0.5,)
+           )
+   
+   BATCH_SIZE      = 256
+   trainset        = CIFAR10(root='./data',train=True,download=True, transform=contrastive_transform)
+   dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
+   ```
 
 - **DiNO**: Here, we will take the case of 2 global crops of size 224x224 pixels (basically set as a constant in the DataAug method which you can change manually if you would like), and then 6 local crops of size 96x96 pixels. The scale of these local and global crops are a factor of the image dimensions, and the values specified in the tuple is (low end range, high end range) in the instantiation of the DinoTransforms object.
 
-```
-import torch, torchvision
-from torchvision.datasets import CIFAR10
-from DataAug import DinoTransforms
-from torch.utils.data import DataLoader
-
-CROPS          = 6
-BATCH_SIZE     = 256
-trainset_dino  = torchvision.datasets.ImageFolder(                                            # Used this because CIFAR10 is too small for doing this kind of SSL (IMO)
-                    root          =   './drive/MyDrive/SSL_Datasets/imagewoof2-320/train',    # add your image path here
-                    transform     =   DinoTransforms(
-                                  local_size         = 96,
-                                  global_size        = 224,
-                                  local_crop_scale   = (0.05, 0.4),
-                                  global_crop_scale  = (0.4, 1.0),
-                                  n_local_crops      = CROPS,
-                                  )
-                    )
-dataloader = DataLoader(trainset_dino, batch_size=BATCH_SIZE, shuffle=True)
-```
+   ```
+   import torch, torchvision
+   from torchvision.datasets import CIFAR10
+   from DataAug import DinoTransforms
+   from torch.utils.data import DataLoader
+   
+   CROPS           = 6
+   BATCH_SIZE      = 256
+   trainset        = torchvision.datasets.ImageFolder(                                            # Used this because CIFAR10 is too small for doing this kind of SSL (IMO)
+                       root          =   './drive/MyDrive/SSL_Datasets/imagewoof2-320/train',    # add your image path here
+                       transform     =   DinoTransforms(
+                                     local_size         = 96,
+                                     global_size        = 224,
+                                     local_crop_scale   = (0.05, 0.4),
+                                     global_crop_scale  = (0.4, 1.0),
+                                     n_local_crops      = CROPS,
+                                     )
+                       )
+   dataloader       = DataLoader(trainset_dino, batch_size=BATCH_SIZE, shuffle=True)
+   ```
 
 ### Instantiation of a Self-Supervised Learning Method Object
 
