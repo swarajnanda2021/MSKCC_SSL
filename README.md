@@ -48,6 +48,7 @@ I will describe here only the approach for instantiating a resnet object and a v
                      'stochastic_depth',
                      }
            )
+   model = resnet34()
    ```
    Here, the input modification_type refers to modifications that are possible to the general vanilla ResNet from the 2015 [He et al. paper](https://arxiv.org/abs/1512.03385). These are namely:
   - Resnet B, C, and D: Based on the [Bag of Tricks](https://arxiv.org/abs/1812.01187) paper that discusses several modifications to both the input stem and the resnet blocks.
@@ -65,8 +66,52 @@ I will describe here only the approach for instantiating a resnet object and a v
      - layers=[3, 4, 6, 3]
      - block = Bottleneck
   
-- **Vision Transformer** :
+- **Vision Transformer** : The following is how you would instantiate the vision transformer. But mind you, the attention mechanism is quite useless in the low data-regime due to a lack of inductive bias in the attention operation.
+  ```ruby
+  def ViT_base():
+        model = ViT_encoder(image_size = 32, 
+                    patch_size = 16, 
+                    in_channels=3, 
+                    embedding_dim = 768, 
+                    feature_size= 1000,
+                    n_blocks = 12,
+                    n_heads = 12,
+                    mlp_ratio = 4.0,
+                    qkv_bias = True,
+                    attention_dropout = 0.2,
+                    projection_dropout = 0.2)
+        return model
+    
+  def ViT_tiny():
+        model = ViT_encoder(image_size=32, 
+                            patch_size=16, 
+                            in_channels=3, 
+                            embedding_dim=192,  # Reduced embedding dimension
+                            feature_size=1000,
+                            n_blocks=12,        # Similar to the base model
+                            n_heads=3,          # Fewer heads than the base model
+                            mlp_ratio=4.0,
+                            qkv_bias=True,
+                            attention_dropout=0.1,  # You might adjust dropout rates
+                            projection_dropout=0.1)
+        return model
 
+
+  def ViT_small():
+        model = ViT_encoder(image_size=32, 
+                            patch_size=16, 
+                            in_channels=3, 
+                            embedding_dim=384,  # Increased compared to tiny
+                            feature_size=1000,
+                            n_blocks=12,        # Similar to the base model
+                            n_heads=6,          # More heads than tiny, fewer than base
+                            mlp_ratio=4.0,
+                            qkv_bias=True,
+                            attention_dropout=0.1,
+                            projection_dropout=0.1)
+        return model
+  ```
+   
 
 ### Instantiation of Data Augmentation Object
 
