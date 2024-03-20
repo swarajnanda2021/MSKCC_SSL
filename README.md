@@ -286,9 +286,8 @@ Once the prior instantiations are completed, the approach for training is relati
 ```ruby
 import torch
 import Scheduler
-dataloader = .... # Take something from prior sections, but be specific to the approach. Besides the DiNO model, all else uses a contrastive style data augmentation object.
 SSL_model  = model 
-optimizer  = torch.optim.AdamW(model.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05) 
+optimizer  = torch.optim.AdamW(SSL_model.parameters(), lr=1e-5, betas=(0.9, 0.95), weight_decay=0.05) 
 scheduler  = Scheduler.CosineAnnealingWarmupRestarts(
                         optimizer,
                         first_cycle_steps=EPOCHS - 10,  # Total epochs minus warm-up epochs
@@ -299,7 +298,7 @@ scheduler  = Scheduler.CosineAnnealingWarmupRestarts(
                         gamma=1.0  # Keep max_lr constant after each cycle
                     )
 
-loss_iter  = model.train(dataloader = dataloader, scheduler = scheduler, optimizer = optimizer)
+loss_iter  = SSL_model.train(dataloader = dataloader, scheduler = scheduler, optimizer = optimizer)
 ```
 
 
