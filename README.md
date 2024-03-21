@@ -169,7 +169,7 @@ I will describe here only the approach for instantiating a resnet object and a v
    - Resnet-34 :
      - layers=[3, 4, 6, 3]
      - block = BasicBlock
-   - Resnet-18 :
+   - Resnet-50 :
      - layers=[3, 4, 6, 3]
      - block = Bottleneck
   
