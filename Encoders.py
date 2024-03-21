@@ -140,12 +140,15 @@ class Bottleneck(nn.Module):
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
 
+        if 'preactivation_residual_unit' in modification_type:
+            self.preact_residual = True
+        
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
     def forward(self, x):
         identity = x
-
+        
         # return relu of x if survival is not possible
         if self.training and self.prob_dropout > 0.0 and self.downsample is None:
           
@@ -156,26 +159,29 @@ class Bottleneck(nn.Module):
           if binary_tensor.item() == 0.0:
             return F.relu(identity, inplace=False)
 
+        if self.preact_residual:
+            x = self.relu(x)
         # else just continue with block processing
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
 
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.squeezeandexcite2(out)
-        out = self.relu(out)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.squeezeandexcite2(x)
+        x = self.relu(x)
 
-        out = self.conv3(out)
-        out = self.bn3(out)
+        x = self.conv3(x)
+        x = self.bn3(x)
 
         if self.downsample is not None:
             identity = self.downsample(identity)
 
-        out += identity
-        out = self.relu(out)
+        x += identity
+        if not self.preact_residual:
+            x = self.relu(x) 
 
-        return out
+        return x
 
 
 
