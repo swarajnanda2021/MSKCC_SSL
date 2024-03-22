@@ -142,6 +142,8 @@ class Bottleneck(nn.Module):
 
         if 'preactivation_residual_unit' in modification_type:
             self.preact_residual = True
+        else
+            self.preact_residual = False
         
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
