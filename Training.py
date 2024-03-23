@@ -53,7 +53,6 @@ def resnet18(outputchannels=1000, modification_type={''}):
                   'resnext', 
                   'squeezeandexcite',
                   'stochastic_depth',
-                  'preactivation_residual_unit',
                   }
         )
 
@@ -70,7 +69,6 @@ def resnet34(outputchannels=1000, modification_type={''}):
                   'resnext', 
                   'squeezeandexcite',
                   'stochastic_depth',
-                  'preactivation_residual_unit',
                   }
         )
 
@@ -88,7 +86,6 @@ def resnet50(outputchannels=1000, modification_type={''}):
                   'resnext', 
                   'squeezeandexcite',
                   'stochastic_depth',
-                  'preactivation_residual_unit',
                   }
         )
 # The following modification types are possible: 
