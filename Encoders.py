@@ -76,12 +76,19 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
             self.squeezeandexcite2 = SqueezeAndExcite(out_channels)
         else:
             self.squeezeandexcite2 = nn.Identity()
-
+        
+        if 'preactivation_residual_unit' in modification_type:
+            self.preact_residual = True
+        else:
+            self.preact_residual = False
+            
         self.downsample = downsample
 
     def forward(self, x):
         identity = x
 
+        if self.preact_residual:
+            out = self.relu(x)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.squeezeandexcite1(out)
@@ -103,7 +110,8 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
           out = out * binary_tensor
         
         out += identity
-        out = self.relu(out)
+        if not self.preact_residual:
+            out = self.relu(out) 
 
         return out
 
@@ -142,7 +150,7 @@ class Bottleneck(nn.Module):
 
         if 'preactivation_residual_unit' in modification_type:
             self.preact_residual = True
-        else
+        else:
             self.preact_residual = False
         
         self.relu = nn.ReLU(inplace=True)
