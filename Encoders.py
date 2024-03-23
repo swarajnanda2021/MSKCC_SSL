@@ -77,18 +77,12 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         else:
             self.squeezeandexcite2 = nn.Identity()
         
-        if 'preactivation_residual_unit' in modification_type:
-            self.preact_residual = True
-        else:
-            self.preact_residual = False
             
         self.downsample = downsample
 
     def forward(self, x):
         identity = x
 
-        if self.preact_residual:
-            out = self.relu(x)
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.squeezeandexcite1(out)
@@ -110,8 +104,8 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
           out = out * binary_tensor
         
         out += identity
-        if not self.preact_residual:
-            out = self.relu(out) 
+        
+        out = self.relu(out) 
 
         return out
 
@@ -148,11 +142,6 @@ class Bottleneck(nn.Module):
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
 
-        if 'preactivation_residual_unit' in modification_type:
-            self.preact_residual = True
-        else:
-            self.preact_residual = False
-        
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
@@ -169,8 +158,7 @@ class Bottleneck(nn.Module):
           if binary_tensor.item() == 0.0:
             return F.relu(identity, inplace=False)
 
-        if self.preact_residual:
-            x = self.relu(x)
+        x = self.relu(x)
         # else just continue with block processing
         x = self.conv1(x)
         x = self.bn1(x)
@@ -188,8 +176,8 @@ class Bottleneck(nn.Module):
             identity = self.downsample(identity)
 
         x += identity
-        if not self.preact_residual:
-            x = self.relu(x) 
+        
+        x = self.relu(x) 
 
         return x
 
