@@ -31,7 +31,7 @@ class SqueezeAndExcite(nn.Module):
         self.avgpool  = nn.AdaptiveAvgPool2d(1)
         self.fc       = nn.Sequential(
             nn.Linear(in_channels, int(in_channels * reduction)),
-            nn.ReLU(inplace=True),
+            nn.ReLU(inplace=False),
             nn.Linear(int(in_channels * reduction), in_channels),
             nn.Sigmoid()                      
             )
@@ -69,7 +69,7 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         else:
             self.squeezeandexcite1 = nn.Identity()
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride = conv2_stride,padding=1, bias=False, groups=groups)
         self.bn2 = nn.BatchNorm2d(out_channels)
         if 'squeezeandexcite' in modification_type and stride != 1:
@@ -142,7 +142,7 @@ class Bottleneck(nn.Module):
         self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
 
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(inplace=False)
         self.downsample = downsample
 
     def forward(self, x):
@@ -237,15 +237,15 @@ class ResNet(nn.Module):
           self.input_branch = nn.Sequential(
               nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False),
               nn.BatchNorm2d(32),
-              nn.ReLU(inplace=True),
+              nn.ReLU(inplace=False),
           
               nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
               nn.BatchNorm2d(32),
-              nn.ReLU(inplace=True),
+              nn.ReLU(inplace=False),
           
               nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=False),
               nn.BatchNorm2d(64),
-              nn.ReLU(inplace=True),
+              nn.ReLU(inplace=False),
 
           )
           
@@ -253,7 +253,7 @@ class ResNet(nn.Module):
           self.input_branch = nn.Sequential(
               nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
               nn.BatchNorm2d(64),
-              nn.ReLU(inplace=True),
+              nn.ReLU(inplace=False),
               
           )
         
