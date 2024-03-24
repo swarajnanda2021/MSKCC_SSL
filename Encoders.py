@@ -110,13 +110,13 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         return out
 
 class Bottleneck(nn.Module):
-    
+    expansion = 4
 
     def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}, dropoutprob = 0.0):
         super(Bottleneck, self).__init__()
 
         self.prob_dropout = dropoutprob
-        expansion = 4
+        
         
         conv1_stride = 1
         conv2_stride = stride
