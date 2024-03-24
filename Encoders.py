@@ -1,4 +1,4 @@
-import torch
+.import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
@@ -140,8 +140,8 @@ class Bottleneck(nn.Module):
         else:
             self.squeezeandexcite2 = nn.Identity()
 
-        self.conv3 = nn.Conv2d(out_channels, out_channels * expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_channels * expansion)
+        self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
 
         self.relu = nn.ReLU(inplace=False)
         self.downsample = downsample
