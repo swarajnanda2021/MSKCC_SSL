@@ -115,7 +115,7 @@ class simCLR(nn.Module): # the similarity loss of simCLR
               file_path = self.savepath
 
               # Save the current state of the model and optimizer
-              self.save_checkpoint(file_path)
+              self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
 
             scheduler.step(epoch)
@@ -290,7 +290,7 @@ class NNCLR(nn.Module):
             if epoch % 10 == 0:
                 file_path = self.savepath
                 # Save the current state of the model and optimizer
-                self.save_checkpoint(file_path)
+                self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
             scheduler.step(epoch)
 
@@ -542,7 +542,7 @@ class MAE(nn.Module):
             if epoch % 10 == 0:
                 file_path = self.savepath
                 # Save the current state of the model and optimizer
-                self.save_checkpoint(file_path)
+                self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
             scheduler.step()
 
@@ -728,7 +728,7 @@ class DiNO(nn.Module):
             if epoch % 10 == 0:
                 file_path = self.savepath
                 # Save the current state of the model and optimizer
-                self.save_checkpoint(file_path)
+                self.save_checkpoint(file_path, epoch, optimizer, scheduler)
 
         return self.losses
 
