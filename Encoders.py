@@ -110,13 +110,14 @@ class BasicBlock(nn.Module): # ResNet 18 and 34
         return out
 
 class Bottleneck(nn.Module):
-    expansion = 4
+    
 
     def __init__(self, in_channels, out_channels, stride=1, downsample=None, modification_type={''}, dropoutprob = 0.0):
         super(Bottleneck, self).__init__()
 
         self.prob_dropout = dropoutprob
-
+        expansion = 4
+        
         conv1_stride = 1
         conv2_stride = stride
         if 'resnetB' in modification_type and stride != 1:
@@ -139,8 +140,8 @@ class Bottleneck(nn.Module):
         else:
             self.squeezeandexcite2 = nn.Identity()
 
-        self.conv3 = nn.Conv2d(out_channels, out_channels * self.expansion, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(out_channels * self.expansion)
+        self.conv3 = nn.Conv2d(out_channels, out_channels * expansion, kernel_size=1, bias=False)
+        self.bn3 = nn.BatchNorm2d(out_channels * expansion)
 
         self.relu = nn.ReLU(inplace=False)
         self.downsample = downsample
@@ -157,8 +158,7 @@ class Bottleneck(nn.Module):
           binary_tensor = random_tensor.floor()  # This will be 1.0 with probability 'survival_prob'
           if binary_tensor.item() == 0.0:
             return F.relu(identity, inplace=False)
-
-        x = self.relu(x)
+        
         # else just continue with block processing
         x = self.conv1(x)
         x = self.bn1(x)
