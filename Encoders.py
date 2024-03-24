@@ -230,8 +230,9 @@ class MBConv(nn.Module):
 class ResNet(nn.Module):
     def __init__(self, block, layers, width_factor = 1, outputchannels=1000, modification_type={''}):
         super(ResNet, self).__init__()
-        self.in_channels = 64
+        
         wf = width_factor
+        self.in_channels = 64 * wf
         # Input branch
         if 'resnetC' in modification_type:
           self.input_branch = nn.Sequential(
