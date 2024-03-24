@@ -228,31 +228,31 @@ class MBConv(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, block, layers, outputchannels=1000, modification_type={''}):
+    def __init__(self, block, layers, width_factor = 1, outputchannels=1000, modification_type={''}):
         super(ResNet, self).__init__()
         self.in_channels = 64
-
+        wf = width_factor
         # Input branch
         if 'resnetC' in modification_type:
           self.input_branch = nn.Sequential(
-              nn.Conv2d(3, 32, kernel_size=3, stride=2, padding=1, bias=False),
-              nn.BatchNorm2d(32),
+              nn.Conv2d(3, 32*wf, kernel_size=3, stride=2, padding=1, bias=False),
+              nn.BatchNorm2d(32*wf),
               nn.ReLU(inplace=False),
           
-              nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-              nn.BatchNorm2d(32),
+              nn.Conv2d(32*wf, 32*wf, kernel_size=3, stride=1, padding=1, bias=False),
+              nn.BatchNorm2d(32*wf),
               nn.ReLU(inplace=False),
           
-              nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1, bias=False),
-              nn.BatchNorm2d(64),
+              nn.Conv2d(32*wf, 64*wf, kernel_size=3, stride=1, padding=1, bias=False),
+              nn.BatchNorm2d(64*wf),
               nn.ReLU(inplace=False),
 
           )
           
         else:
           self.input_branch = nn.Sequential(
-              nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False),
-              nn.BatchNorm2d(64),
+              nn.Conv2d(3, 64*wf, kernel_size=7, stride=2, padding=3, bias=False),
+              nn.BatchNorm2d(64*wf),
               nn.ReLU(inplace=False),
               
           )
@@ -261,14 +261,14 @@ class ResNet(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         # Residual branch stages
-        self.layer1 = self._make_layer(block, 64, layers[0], stride=1, modification_type = {''}) # no tweaks whatsoever to the first except if resnext is chosen
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2, modification_type=modification_type)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2, modification_type=modification_type)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2, modification_type=modification_type)
+        self.layer1 = self._make_layer(block, 64*wf, layers[0], stride=1, modification_type = {''}) # no tweaks whatsoever to the first except if resnext is chosen
+        self.layer2 = self._make_layer(block, 128*wf, layers[1], stride=2, modification_type=modification_type)
+        self.layer3 = self._make_layer(block, 256*wf, layers[2], stride=2, modification_type=modification_type)
+        self.layer4 = self._make_layer(block, 512*wf, layers[3], stride=2, modification_type=modification_type)
         
         # Final average pool and fully connected linear layer
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * block.expansion, outputchannels)
+        self.fc = nn.Linear(512*wf * block.expansion, outputchannels)
 
     def _make_layer(self, block, out_channels, blocks, stride=1, modification_type={''}):
         downsample = None
