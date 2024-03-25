@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from Encoders import PatchEmbed, TransformerBlock
 from Utils import SupportSet, MultiCropWrapper, DiNOProjection
 import numpy as np
+import tqdm
 
 # Modify simCLR to handle an encoder that has been partitioned and fed to the torchgpipe module
 # The main modification is that the encoder that is provided at simCLR's init should have a 'devices'
