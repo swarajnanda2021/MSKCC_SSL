@@ -67,7 +67,8 @@ dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 flattened_resnet_model = FlattenResnet(encoder) # Flatten it to sequential neural network first
 # We will now upload the model to GPipe (MAKING THE ASSUMPTION YOU ARE RUNNING IN A TERMINAL WITH MULTIPLE GPUS)
 # Use the balance by memory size to get chunking information. This should not be entered naively.
-balance = GPipe.balance_by_size(
+from GPipe.balance import balance_by_size
+balance = balance_by_size(
                 partitions = torch.cuda.device_count(),
                 model = flattened_resnet_model, 
                 sample = (10,3,IMAGESIZE,IMAGESIZE),
@@ -78,7 +79,7 @@ print('Determined memory balancing across devices to be:', balance)
 encoder_gpipe = GPipe(flattened_resnet_model,
               balance=balance,  # Specify GPUs.
               chunks=DATAPARALLEL,
-              checkpoint='always',#'always',#'never'
+              checkpoint='except_last',#'always',#'never'
       )
 
 # Instantiate the SSL model with input as the GPipe model
