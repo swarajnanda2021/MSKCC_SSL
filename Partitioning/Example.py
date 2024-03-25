@@ -59,7 +59,7 @@ custom_transforms = DataAug.ContrastiveTransformations(
 # Replace the following line if you are going to train off of an imagefolder
 trainset         = torchvision.datasets.ImageFolder(
                     root          =   IMAGEPATH, # add your image path here
-                    transform     =   contrast_transforms,
+                    transform     =   custom_transforms,
                     )
 dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 
