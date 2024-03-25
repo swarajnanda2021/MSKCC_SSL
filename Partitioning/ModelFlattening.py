@@ -2,6 +2,11 @@
 # that facilitates model sharding. Initially based on the model formatting required for 
 # GPipe (https://torchgpipe.readthedocs.io/en/stable/)
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+
 # Flattens all models which have ResNet like staging (stage1, stage2,...; here called layer1, layer2,...)
 # Considers the average pooling, flatten and fully connected layers at the end to be one stage (final stage)
 # Considers an 'input branch', which contains the input stage downsampling (7x7 conv, see vanilla ResNet)
