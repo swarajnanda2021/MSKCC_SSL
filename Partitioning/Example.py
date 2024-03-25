@@ -13,6 +13,8 @@ BATCH_SIZE      = 30
 EPOCHS          = 50
 SAVEPATH        = ''
 IMAGEPATH       = ''
+IMAGESIZE       = 224
+DATAPARALLEL    = 1 # modifies the batch size. Data parallelism is achieved in expense of batch statistics. So Dataparallel=1 means 1 chunk of batch swize, 2 means two halves, and so on...
 
 # Instantiate an encoder
 def resnet50(outputchannels=1024, modification_type={''}):
@@ -22,12 +24,12 @@ def resnet50(outputchannels=1024, modification_type={''}):
       layers = [3, 4, 6, 3], 
       outputchannels=outputchannels, 
       modification_type={
-                'resnetB', 
-                'resnetC',
-                'resnetD',
-                'resnext', 
-                'squeezeandexcite',
-                'stochastic_depth', # deleted preactivation residual unit although I think it is still a useful modification
+                #'resnetB', 
+                #'resnetC',
+                #'resnetD',
+                #'resnext', 
+                #'squeezeandexcite',
+                #'stochastic_depth', # deleted preactivation residual unit although I think it is still a useful modification
                 },
       
       )
@@ -36,7 +38,7 @@ encoder = resnet50()
 
 # Instantiate the dataloader
 custom_transforms = DataAug.ContrastiveTransformations(
-            size=32,
+            size=IMAGESIZE,
             nviews=2,
             horizontal_flip=True,
             resized_crop=True,
@@ -61,17 +63,22 @@ trainset         = torchvision.datasets.ImageFolder(
                     )
 dataloader      = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
 
-# Assuming the use of a CUDA device if available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # This line is not needed, just here for illustration
-
 # Prepare encoder's pipeline parallelism strategy using GPipe
 flattened_resnet_model = FlattenResnet(encoder) # Flatten it to sequential neural network first
-# We will now upload the model to GPipe
+# We will now upload the model to GPipe (MAKING THE ASSUMPTION YOU ARE RUNNING IN A TERMINAL WITH MULTIPLE GPUS)
+# Use the balance by memory size to get chunking information. This should not be entered naively.
+balance = GPipe.balance_by_size(
+                partitions = torch.cuda.device_count(),
+                model = flattened_resnet_model, 
+                sample = (10,3,IMAGESIZE,IMAGESIZE),
+      )
+
+print('Determined memory balancing across devices to be:', balance)
+
 encoder_gpipe = GPipe(flattened_resnet_model,
-              balance=[3,3,3,3,3,3],  # Specify GPUs.
-              devices = [0,0,0,0,0,0],
-              chunks=3,
-              checkpoint='never',#'always',#'never'
+              balance=balance,  # Specify GPUs.
+              chunks=DATAPARALLEL,
+              checkpoint='always',#'always',#'never'
       )
 
 # Instantiate the SSL model with input as the GPipe model
