@@ -1,10 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
+from tqdm import tqdm
+from torchvision import models
 from Encoders import PatchEmbed, TransformerBlock
+from Scheduler import CustomScheduler
 from Utils import SupportSet, MultiCropWrapper, DiNOProjection
 import numpy as np
-import tqdm
+import Scheduler
 
 # Modify simCLR to handle an encoder that has been partitioned and fed to the torchgpipe module
 # The main modification is that the encoder that is provided at simCLR's init should have a 'devices'
