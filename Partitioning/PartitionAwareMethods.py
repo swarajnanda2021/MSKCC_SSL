@@ -113,7 +113,7 @@ class GPipeSimCLR(nn.Module): # the similarity loss of simCLR
                 # Update tqdm progress bar with the current loss and learning rate
                 train_loader.set_postfix(loss=loss.item(), lr=optimizer.param_groups[0]['lr'])
 
-            if (int(epoch)%10 == 0):
+            if (int(epoch+1)%10 == 0):
               file_path = self.savepath
 
               # Save the current state of the model and optimizer
